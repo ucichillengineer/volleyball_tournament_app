@@ -8,7 +8,7 @@ Seeded from `players.md` with Praveen Sanigepalli and Vikas Yadlapalli.
 
 Published on GitHub Pages from the `docs/` folder:
 
-`https://<your-github-username>.github.io/volleyball_tournament_app/`
+https://ucichillengineer.github.io/volleyball_tournament_app/
 
 ## Features
 
