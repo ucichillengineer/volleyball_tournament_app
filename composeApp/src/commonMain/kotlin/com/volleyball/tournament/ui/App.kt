@@ -163,16 +163,12 @@ fun VolleyballApp(viewModel: TournamentViewModel = remember { TournamentViewMode
                         )
                         AppTab.Admin -> AdminScreen(
                             isAdmin = isAdmin,
-                            driveFileId = state.driveFileId,
-                            driveSyncUrl = state.driveSyncUrl,
                             exportJson = { viewModel.exportSnapshot() },
                             onBack = { tab = AppTab.Home },
                             onLogin = viewModel::loginAdmin,
                             onLogout = viewModel::logoutAdmin,
-                            onSaveDrive = viewModel::updateDriveConfig,
                             onPassword = viewModel::updateAdminPassword,
-                            onPull = viewModel::pullFromDrive,
-                            onPush = viewModel::pushToDrive
+                            onRefresh = viewModel::refreshFromCloud
                         )
                     }
                 }
@@ -229,7 +225,7 @@ private fun HomeScreen(
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Sand)
             ) {
-                Text("Admin & Google Drive")
+                Text("Admin")
             }
         }
     }
@@ -538,26 +534,20 @@ private fun SwitchMenu(
 @Composable
 private fun AdminScreen(
     isAdmin: Boolean,
-    driveFileId: String,
-    driveSyncUrl: String,
     exportJson: () -> String,
     onBack: () -> Unit,
     onLogin: (String, String) -> Boolean,
     onLogout: () -> Unit,
-    onSaveDrive: (String, String) -> Unit,
     onPassword: (String) -> Unit,
-    onPull: () -> Unit,
-    onPush: () -> Unit
+    onRefresh: () -> Unit
 ) {
     var user by remember { mutableStateOf("admin") }
     var pass by remember { mutableStateOf("") }
-    var fileId by remember { mutableStateOf(driveFileId) }
-    var syncUrl by remember { mutableStateOf(driveSyncUrl) }
     var newPass by remember { mutableStateOf("") }
 
     ScreenScaffold(title = "Admin", onBack = onBack) {
         if (!isAdmin) {
-            Text("Default login: admin / volleyball — change it and push to Drive.", color = Foam.copy(alpha = 0.75f))
+            Text("Default login: admin / volleyball", color = Foam.copy(alpha = 0.75f))
             Spacer(modifier = Modifier.height(12.dp))
             Field(user, { user = it }, "Username")
             Spacer(modifier = Modifier.height(8.dp))
@@ -565,26 +555,13 @@ private fun AdminScreen(
             Spacer(modifier = Modifier.height(12.dp))
             PrimaryAction("Unlock admin") { onLogin(user, pass) }
         } else {
-            Text("Admin unlocked. Credentials live in the Drive JSON sync.", color = Sand)
+            Text("Admin unlocked. Roster syncs automatically to the shared cloud for everyone.", color = Sand)
             Spacer(modifier = Modifier.height(12.dp))
-            Field(fileId, { fileId = it }, "Google Drive file ID (public read)")
-            Spacer(modifier = Modifier.height(8.dp))
-            Field(syncUrl, { syncUrl = it }, "Apps Script sync URL (read/write)")
-            Spacer(modifier = Modifier.height(10.dp))
             Button(
-                onClick = { onSaveDrive(fileId, syncUrl) },
+                onClick = onRefresh,
                 colors = ButtonDefaults.buttonColors(containerColor = Spike),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Save Drive config") }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(onClick = onPull, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = Sand)) {
-                    Text("Pull")
-                }
-                Button(onClick = onPush, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Spike)) {
-                    Text("Push")
-                }
-            }
+            ) { Text("Refresh from cloud") }
             Spacer(modifier = Modifier.height(16.dp))
             Field(newPass, { newPass = it }, "New admin password")
             Spacer(modifier = Modifier.height(8.dp))
@@ -598,7 +575,7 @@ private fun AdminScreen(
                 onClick = { shareText(exportJson(), "tournament-data.json") },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Sand)
-            ) { Text("Export JSON for Drive upload") }
+            ) { Text("Export JSON backup") }
             Spacer(modifier = Modifier.height(8.dp))
             TextButton(onClick = onLogout) { Text("Lock admin", color = Color(0xFFFF8A80)) }
         }

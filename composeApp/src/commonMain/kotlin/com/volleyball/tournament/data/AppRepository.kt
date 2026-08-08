@@ -16,7 +16,7 @@ expect class PlatformStorage() {
 
 class AppRepository(
     private val storage: PlatformStorage = PlatformStorage(),
-    private val driveSync: DriveSync = DriveSync()
+    private val cloudSync: CloudSync = CloudSync()
 ) {
     private val json = Json {
         prettyPrint = true
@@ -50,42 +50,20 @@ class AppRepository(
 
     fun exportJson(): String = json.encodeToString(_state.value)
 
-    suspend fun syncFromDrive(): Result<Unit> {
-        val syncUrl = _state.value.driveSyncUrl.trim()
-        val fileId = _state.value.driveFileId.trim()
-        return try {
-            val remoteJson = when {
-                syncUrl.isNotBlank() -> driveSync.fetchFromAppsScript(syncUrl)
-                fileId.isNotBlank() -> driveSync.fetchPublicDriveFile(fileId)
-                else -> return Result.failure(IllegalStateException("Configure Drive Sync URL or File ID in Admin"))
-            }
-            val remote = json.decodeFromString<AppState>(remoteJson)
-            // Keep local drive config if remote doesn't have it
-            val merged = remote.copy(
-                driveFileId = remote.driveFileId.ifBlank { _state.value.driveFileId },
-                driveSyncUrl = remote.driveSyncUrl.ifBlank { _state.value.driveSyncUrl },
-                lastSyncedAt = currentTimeMillis()
-            )
-            replace(merged)
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    suspend fun syncFromCloud(): Result<Unit> = try {
+        val remote = json.decodeFromString<AppState>(cloudSync.pull())
+        replace(remote.copy(lastSyncedAt = currentTimeMillis()))
+        Result.success(Unit)
+    } catch (e: Exception) {
+        Result.failure(e)
     }
 
-    suspend fun syncToDrive(): Result<Unit> {
-        val syncUrl = _state.value.driveSyncUrl.trim()
-        if (syncUrl.isBlank()) {
-            return Result.failure(IllegalStateException("Configure Drive Sync URL (Apps Script) in Admin to push data"))
-        }
-        return try {
-            val payload = exportJson()
-            driveSync.pushToAppsScript(syncUrl, payload)
-            update { it.copy(lastSyncedAt = currentTimeMillis()) }
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    suspend fun syncToCloud(): Result<Unit> = try {
+        cloudSync.push(exportJson())
+        update { it.copy(lastSyncedAt = currentTimeMillis()) }
+        Result.success(Unit)
+    } catch (e: Exception) {
+        Result.failure(e)
     }
 
     private fun persist(state: AppState) {

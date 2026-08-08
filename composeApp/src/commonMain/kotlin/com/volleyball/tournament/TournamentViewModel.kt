@@ -9,11 +9,14 @@ import com.volleyball.tournament.domain.TeamBalancer
 import com.volleyball.tournament.domain.newPlayerId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -38,6 +41,36 @@ class TournamentViewModel(
     val whatsAppText: StateFlow<String> = repository.state
         .map { TeamBalancer.formatWhatsAppMessage(it) }
         .stateIn(scope, SharingStarted.Eagerly, "")
+
+    private var pushJob: Job? = null
+
+    init {
+        // Load shared cloud roster, then keep cloud updated when local state changes.
+        scope.launch {
+            _busy.value = true
+            repository.syncFromCloud().fold(
+                onSuccess = { _message.value = UiMessage("Synced shared roster from cloud") },
+                onFailure = {
+                    // Offline / first visit: keep local seed data and try to publish it.
+                    repository.syncToCloud()
+                }
+            )
+            _busy.value = false
+        }
+        scope.launch {
+            repository.state.drop(1).collect {
+                scheduleCloudPush()
+            }
+        }
+    }
+
+    private fun scheduleCloudPush() {
+        pushJob?.cancel()
+        pushJob = scope.launch {
+            delay(800)
+            repository.syncToCloud()
+        }
+    }
 
     fun clearMessage() {
         _message.value = null
@@ -88,8 +121,6 @@ class TournamentViewModel(
 
     fun updateRatings(playerId: String, ratings: SkillRatings) {
         val player = repository.state.value.players.firstOrNull { it.id == playerId } ?: return
-        // Player can change own ratings; admin can change anyone.
-        // Without per-player auth, "self" edits are allowed for all non-locked fields unless admin-only mode.
         repository.update { state ->
             state.copy(
                 players = state.players.map {
@@ -158,17 +189,6 @@ class TournamentViewModel(
         _message.value = UiMessage("Pending switch cancelled")
     }
 
-    fun updateDriveConfig(fileId: String, syncUrl: String) {
-        if (!_isAdmin.value) {
-            _message.value = UiMessage("Admin login required", isError = true)
-            return
-        }
-        repository.update {
-            it.copy(driveFileId = fileId.trim(), driveSyncUrl = syncUrl.trim())
-        }
-        _message.value = UiMessage("Google Drive config saved")
-    }
-
     fun updateAdminPassword(newPassword: String) {
         if (!_isAdmin.value) {
             _message.value = UiMessage("Admin login required", isError = true)
@@ -179,30 +199,15 @@ class TournamentViewModel(
             return
         }
         repository.update { it.copy(admin = it.admin.copy(password = newPassword)) }
-        _message.value = UiMessage("Admin password updated (sync to Drive to share)")
+        _message.value = UiMessage("Admin password updated (syncing to cloud)")
     }
 
-    fun pullFromDrive() {
+    fun refreshFromCloud() {
         scope.launch {
             _busy.value = true
-            repository.syncFromDrive().fold(
-                onSuccess = { _message.value = UiMessage("Pulled latest data from Google Drive") },
-                onFailure = { _message.value = UiMessage(it.message ?: "Drive pull failed", isError = true) }
-            )
-            _busy.value = false
-        }
-    }
-
-    fun pushToDrive() {
-        if (!_isAdmin.value) {
-            _message.value = UiMessage("Admin login required to push", isError = true)
-            return
-        }
-        scope.launch {
-            _busy.value = true
-            repository.syncToDrive().fold(
-                onSuccess = { _message.value = UiMessage("Pushed credentials & roster to Google Drive") },
-                onFailure = { _message.value = UiMessage(it.message ?: "Drive push failed", isError = true) }
+            repository.syncFromCloud().fold(
+                onSuccess = { _message.value = UiMessage("Refreshed shared roster from cloud") },
+                onFailure = { _message.value = UiMessage(it.message ?: "Cloud refresh failed", isError = true) }
             )
             _busy.value = false
         }
