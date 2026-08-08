@@ -1,0 +1,654 @@
+package com.volleyball.tournament.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.volleyball.tournament.TournamentViewModel
+import com.volleyball.tournament.domain.Player
+import com.volleyball.tournament.domain.SkillLevel
+import com.volleyball.tournament.domain.SkillRatings
+import com.volleyball.tournament.openWhatsApp
+import com.volleyball.tournament.shareText
+
+private val CourtGreen = Color(0xFF0B3D2E)
+private val CourtMid = Color(0xFF146B4A)
+private val Sand = Color(0xFFE8D5A3)
+private val Spike = Color(0xFFFF6B2C)
+private val Foam = Color(0xFFF4F7F2)
+private val Ink = Color(0xFF10231C)
+
+private val AppColors = darkColorScheme(
+    primary = Spike,
+    onPrimary = Color.White,
+    secondary = Sand,
+    onSecondary = Ink,
+    background = CourtGreen,
+    onBackground = Foam,
+    surface = Color(0xFF124836),
+    onSurface = Foam,
+    outline = Sand.copy(alpha = 0.4f)
+)
+
+enum class AppTab { Home, Players, Teams, Admin }
+
+@Composable
+fun VolleyballApp(viewModel: TournamentViewModel = remember { TournamentViewModel() }) {
+    MaterialTheme(colorScheme = AppColors) {
+        val state by viewModel.appState.collectAsState()
+        val isAdmin by viewModel.isAdmin.collectAsState()
+        val message by viewModel.message.collectAsState()
+        val busy by viewModel.busy.collectAsState()
+        val whatsApp by viewModel.whatsAppText.collectAsState()
+        var tab by remember { mutableStateOf(AppTab.Home) }
+        val snackbar = remember { SnackbarHostState() }
+
+        LaunchedEffect(message) {
+            message?.let {
+                snackbar.showSnackbar(it.text)
+                viewModel.clearMessage()
+            }
+        }
+
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbar) },
+            containerColor = Color.Transparent
+        ) { padding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(Color(0xFF07261C), CourtGreen, CourtMid),
+                            start = Offset(0f, 0f),
+                            end = Offset(900f, 1400f)
+                        )
+                    )
+                    .padding(padding)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp)
+                        .border(2.dp, Sand.copy(alpha = 0.18f), RoundedCornerShape(8.dp))
+                )
+
+                Column(modifier = Modifier.fillMaxSize()) {
+                    if (busy) {
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Spike,
+                            trackColor = Sand.copy(alpha = 0.2f)
+                        )
+                    }
+
+                    when (tab) {
+                        AppTab.Home -> HomeScreen(
+                            playerCount = state.players.size,
+                            teamCount = state.teams.size,
+                            isAdmin = isAdmin,
+                            onPlayers = { tab = AppTab.Players },
+                            onTeams = { tab = AppTab.Teams },
+                            onAdmin = { tab = AppTab.Admin }
+                        )
+                        AppTab.Players -> PlayersScreen(
+                            players = state.players,
+                            isAdmin = isAdmin,
+                            onBack = { tab = AppTab.Home },
+                            onAdd = viewModel::addPlayer,
+                            onUpdateRatings = viewModel::updateRatings,
+                            onRemove = viewModel::removePlayer
+                        )
+                        AppTab.Teams -> TeamsScreen(
+                            statePlayers = state.players,
+                            stateTeams = state.teams,
+                            pending = state.pendingSwitch,
+                            whatsAppText = whatsApp,
+                            onBack = { tab = AppTab.Home },
+                            onCreate = viewModel::createTeams,
+                            onRequestSwitch = viewModel::requestTeamSwitch,
+                            onConfirm = viewModel::confirmSwitch,
+                            onCancel = viewModel::cancelSwitch
+                        )
+                        AppTab.Admin -> AdminScreen(
+                            isAdmin = isAdmin,
+                            driveFileId = state.driveFileId,
+                            driveSyncUrl = state.driveSyncUrl,
+                            exportJson = { viewModel.exportSnapshot() },
+                            onBack = { tab = AppTab.Home },
+                            onLogin = viewModel::loginAdmin,
+                            onLogout = viewModel::logoutAdmin,
+                            onSaveDrive = viewModel::updateDriveConfig,
+                            onPassword = viewModel::updateAdminPassword,
+                            onPull = viewModel::pullFromDrive,
+                            onPush = viewModel::pushToDrive
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeScreen(
+    playerCount: Int,
+    teamCount: Int,
+    isAdmin: Boolean,
+    onPlayers: () -> Unit,
+    onTeams: () -> Unit,
+    onAdmin: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 28.dp, vertical = 36.dp),
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column {
+            Text(
+                text = "COURT BALANCE",
+                color = Sand,
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.Bold,
+                fontSize = 42.sp,
+                lineHeight = 46.sp
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Build fair volleyball sides, name captains, and share the lineup in one tap.",
+                color = Foam.copy(alpha = 0.85f),
+                fontSize = 17.sp,
+                lineHeight = 24.sp,
+                modifier = Modifier.fillMaxWidth(0.92f)
+            )
+            Spacer(modifier = Modifier.height(28.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                StatPill("$playerCount players")
+                StatPill("$teamCount teams")
+                if (isAdmin) StatPill("admin")
+            }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            PrimaryAction("Open roster", onPlayers)
+            PrimaryAction("Balance teams", onTeams)
+            OutlinedButton(
+                onClick = onAdmin,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Sand)
+            ) {
+                Text("Admin & Google Drive")
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatPill(text: String) {
+    Text(
+        text = text.uppercase(),
+        color = Sand,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 1.sp,
+        modifier = Modifier
+            .border(1.dp, Sand.copy(alpha = 0.45f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    )
+}
+
+@Composable
+private fun PrimaryAction(label: String, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(54.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = Spike, contentColor = Color.White)
+    ) {
+        Text(label, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PlayersScreen(
+    players: List<Player>,
+    isAdmin: Boolean,
+    onBack: () -> Unit,
+    onAdd: (String, SkillRatings, Boolean) -> Unit,
+    onUpdateRatings: (String, SkillRatings) -> Unit,
+    onRemove: (String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var setter by remember { mutableStateOf(SkillLevel.MEDIUM) }
+    var lifter by remember { mutableStateOf(SkillLevel.MEDIUM) }
+    var spiker by remember { mutableStateOf(SkillLevel.MEDIUM) }
+    var allRounder by remember { mutableStateOf(SkillLevel.MEDIUM) }
+    var editingId by remember { mutableStateOf<String?>(null) }
+
+    ScreenScaffold(title = "Roster", onBack = onBack) {
+        Text("Add yourself or, as admin, add any member.", color = Foam.copy(alpha = 0.75f))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Field(value = name, onValueChange = { name = it }, label = "Player name")
+        Spacer(modifier = Modifier.height(12.dp))
+        SkillPicker("Setter", setter) { setter = it }
+        SkillPicker("Lifter", lifter) { lifter = it }
+        SkillPicker("Spiker", spiker) { spiker = it }
+        SkillPicker("All rounder", allRounder) { allRounder = it }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = {
+                    onAdd(name, SkillRatings(setter, lifter, spiker, allRounder), true)
+                    name = ""
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = Spike)
+            ) { Text("Add myself") }
+
+            if (isAdmin) {
+                OutlinedButton(
+                    onClick = {
+                        onAdd(name, SkillRatings(setter, lifter, spiker, allRounder), false)
+                        name = ""
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Sand)
+                ) { Text("Admin add") }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(28.dp))
+        Text("Members", fontFamily = FontFamily.Serif, fontSize = 28.sp, color = Sand)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        players.forEach { player ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 10.dp)
+                    .border(1.dp, Sand.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                    .padding(14.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Spike.copy(alpha = 0.85f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            player.name.take(1).uppercase(),
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(player.name, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+                        Text(
+                            "Score ${player.ratings.totalScore()} · S ${player.ratings.setter.label} · L ${player.ratings.lifter.label} · K ${player.ratings.spiker.label} · A ${player.ratings.allRounder.label}",
+                            color = Foam.copy(alpha = 0.65f),
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = {
+                        editingId = if (editingId == player.id) null else player.id
+                        if (editingId == player.id) {
+                            setter = player.ratings.setter
+                            lifter = player.ratings.lifter
+                            spiker = player.ratings.spiker
+                            allRounder = player.ratings.allRounder
+                        }
+                    }) { Text(if (editingId == player.id) "Close" else "Edit ratings", color = Sand) }
+                    if (isAdmin) {
+                        TextButton(onClick = { onRemove(player.id) }) {
+                            Text("Remove", color = Color(0xFFFF8A80))
+                        }
+                    }
+                }
+                if (editingId == player.id) {
+                    SkillPicker("Setter", setter) { setter = it }
+                    SkillPicker("Lifter", lifter) { lifter = it }
+                    SkillPicker("Spiker", spiker) { spiker = it }
+                    SkillPicker("All rounder", allRounder) { allRounder = it }
+                    Button(
+                        onClick = {
+                            onUpdateRatings(player.id, SkillRatings(setter, lifter, spiker, allRounder))
+                            editingId = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Spike)
+                    ) { Text("Save ratings") }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SkillPicker(label: String, selected: SkillLevel, onSelect: (SkillLevel) -> Unit) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text(label, color = Sand.copy(alpha = 0.9f), fontSize = 13.sp)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SkillLevel.entries.forEach { level ->
+                FilterChip(
+                    selected = selected == level,
+                    onClick = { onSelect(level) },
+                    label = { Text(level.label) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Spike,
+                        selectedLabelColor = Color.White,
+                        containerColor = Color(0xFF0F3F30),
+                        labelColor = Foam
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeamsScreen(
+    statePlayers: List<Player>,
+    stateTeams: List<com.volleyball.tournament.domain.Team>,
+    pending: com.volleyball.tournament.domain.PendingSwitch?,
+    whatsAppText: String,
+    onBack: () -> Unit,
+    onCreate: (Int, List<String>) -> Unit,
+    onRequestSwitch: (String, String) -> Unit,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit
+) {
+    var teamCount by remember { mutableStateOf("2") }
+
+    ScreenScaffold(title = "Teams", onBack = onBack) {
+        Text(
+            "Generate balanced sides with captains. Only one player switch can be pending at a time.",
+            color = Foam.copy(alpha = 0.75f)
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        Field(value = teamCount, onValueChange = { teamCount = it.filter(Char::isDigit).take(1) }, label = "Number of teams")
+        Spacer(modifier = Modifier.height(10.dp))
+        Button(
+            onClick = { onCreate(teamCount.toIntOrNull()?.coerceAtLeast(2) ?: 2, emptyList()) },
+            colors = ButtonDefaults.buttonColors(containerColor = Spike),
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Create balanced teams") }
+
+        if (pending != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Spike.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                    .border(1.dp, Spike, RoundedCornerShape(12.dp))
+                    .padding(14.dp)
+            ) {
+                val playerName = statePlayers.firstOrNull { it.id == pending.playerId }?.name ?: "Player"
+                val from = stateTeams.firstOrNull { it.id == pending.fromTeamId }?.name ?: "?"
+                val to = stateTeams.firstOrNull { it.id == pending.toTeamId }?.name ?: "?"
+                Text("Pending switch", color = Spike, fontWeight = FontWeight.Bold)
+                Text("$playerName: $from → $to", color = Foam)
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = Spike)) {
+                        Text("Confirm")
+                    }
+                    OutlinedButton(onClick = onCancel, colors = ButtonDefaults.outlinedButtonColors(contentColor = Sand)) {
+                        Text("Cancel")
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(22.dp))
+        stateTeams.forEach { team ->
+            val roster = statePlayers.filter { it.teamId == team.id }
+                .sortedWith(compareByDescending<Player> { it.isCaptain }.thenBy { it.name })
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+                    .border(1.dp, Sand.copy(alpha = 0.28f), RoundedCornerShape(14.dp))
+                    .padding(16.dp)
+            ) {
+                Text(team.name, fontFamily = FontFamily.Serif, fontSize = 26.sp, color = Sand)
+                Text(
+                    "Balance ${roster.sumOf { it.ratings.totalScore() }}",
+                    color = Foam.copy(alpha = 0.65f),
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                roster.forEach { player ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                player.name + if (player.isCaptain) "  · captain" else "",
+                                fontWeight = if (player.isCaptain) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                        if (stateTeams.size > 1 && pending == null) {
+                            SwitchMenu(
+                                teams = stateTeams.filter { it.id != player.teamId },
+                                onPick = { onRequestSwitch(player.id, it) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (stateTeams.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            PrimaryAction("Share on WhatsApp") { openWhatsApp(whatsAppText) }
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { shareText(whatsAppText) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Sand)
+            ) { Text("Share / copy team sheet") }
+        }
+    }
+}
+
+@Composable
+private fun SwitchMenu(
+    teams: List<com.volleyball.tournament.domain.Team>,
+    onPick: (String) -> Unit
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        TextButton(onClick = { open = true }) { Text("Move", color = Spike) }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            teams.forEach { team ->
+                DropdownMenuItem(
+                    text = { Text("To ${team.name}") },
+                    onClick = {
+                        open = false
+                        onPick(team.id)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminScreen(
+    isAdmin: Boolean,
+    driveFileId: String,
+    driveSyncUrl: String,
+    exportJson: () -> String,
+    onBack: () -> Unit,
+    onLogin: (String, String) -> Boolean,
+    onLogout: () -> Unit,
+    onSaveDrive: (String, String) -> Unit,
+    onPassword: (String) -> Unit,
+    onPull: () -> Unit,
+    onPush: () -> Unit
+) {
+    var user by remember { mutableStateOf("admin") }
+    var pass by remember { mutableStateOf("") }
+    var fileId by remember { mutableStateOf(driveFileId) }
+    var syncUrl by remember { mutableStateOf(driveSyncUrl) }
+    var newPass by remember { mutableStateOf("") }
+
+    ScreenScaffold(title = "Admin", onBack = onBack) {
+        if (!isAdmin) {
+            Text("Default login: admin / volleyball — change it and push to Drive.", color = Foam.copy(alpha = 0.75f))
+            Spacer(modifier = Modifier.height(12.dp))
+            Field(user, { user = it }, "Username")
+            Spacer(modifier = Modifier.height(8.dp))
+            Field(pass, { pass = it }, "Password")
+            Spacer(modifier = Modifier.height(12.dp))
+            PrimaryAction("Unlock admin") { onLogin(user, pass) }
+        } else {
+            Text("Admin unlocked. Credentials live in the Drive JSON sync.", color = Sand)
+            Spacer(modifier = Modifier.height(12.dp))
+            Field(fileId, { fileId = it }, "Google Drive file ID (public read)")
+            Spacer(modifier = Modifier.height(8.dp))
+            Field(syncUrl, { syncUrl = it }, "Apps Script sync URL (read/write)")
+            Spacer(modifier = Modifier.height(10.dp))
+            Button(
+                onClick = { onSaveDrive(fileId, syncUrl) },
+                colors = ButtonDefaults.buttonColors(containerColor = Spike),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Save Drive config") }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = onPull, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = Sand)) {
+                    Text("Pull")
+                }
+                Button(onClick = onPush, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Spike)) {
+                    Text("Push")
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Field(newPass, { newPass = it }, "New admin password")
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { onPassword(newPass) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Sand)
+            ) { Text("Update password") }
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = { shareText(exportJson(), "tournament-data.json") },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Sand)
+            ) { Text("Export JSON for Drive upload") }
+            Spacer(modifier = Modifier.height(8.dp))
+            TextButton(onClick = onLogout) { Text("Lock admin", color = Color(0xFFFF8A80)) }
+        }
+    }
+}
+
+@Composable
+private fun ScreenScaffold(
+    title: String,
+    onBack: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 22.dp, vertical = 20.dp)
+    ) {
+        TextButton(onClick = onBack, contentPadding = PaddingValues(0.dp)) {
+            Text("← Back", color = Sand)
+        }
+        Text(
+            text = title,
+            fontFamily = FontFamily.Serif,
+            fontSize = 34.sp,
+            color = Sand,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        content()
+        Spacer(modifier = Modifier.height(40.dp))
+    }
+}
+
+@Composable
+private fun Field(value: String, onValueChange: (String) -> Unit, label: String) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Spike,
+            unfocusedBorderColor = Sand.copy(alpha = 0.4f),
+            focusedLabelColor = Sand,
+            unfocusedLabelColor = Foam.copy(alpha = 0.7f),
+            focusedTextColor = Foam,
+            unfocusedTextColor = Foam,
+            cursorColor = Spike
+        )
+    )
+}
