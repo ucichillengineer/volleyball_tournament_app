@@ -3,6 +3,7 @@ package com.volleyball.tournament
 import com.volleyball.tournament.data.AppRepository
 import com.volleyball.tournament.domain.AppState
 import com.volleyball.tournament.domain.Player
+import com.volleyball.tournament.domain.SeedPlayers
 import com.volleyball.tournament.domain.SkillLevel
 import com.volleyball.tournament.domain.SkillRatings
 import com.volleyball.tournament.domain.TeamBalancer
@@ -51,8 +52,18 @@ class TournamentViewModel(
             repository.syncFromCloud().fold(
                 onSuccess = { _message.value = UiMessage("Synced shared roster from cloud") },
                 onFailure = {
-                    // Offline / first visit: keep local seed data and try to publish it.
-                    repository.syncToCloud()
+                    // Do not overwrite cloud with bare seed data. Only republish if this
+                    // device already has real roster changes beyond the default seed.
+                    val local = repository.state.value
+                    val hasRealData =
+                        local.teams.isNotEmpty() ||
+                            local.players.size > SeedPlayers.initial.size ||
+                            local.players.any { player ->
+                                SeedPlayers.initial.none { it.id == player.id || it.name == player.name }
+                            }
+                    if (hasRealData) {
+                        repository.syncToCloud()
+                    }
                 }
             )
             _busy.value = false
@@ -132,14 +143,28 @@ class TournamentViewModel(
     }
 
     fun removePlayer(playerId: String) {
-        if (!_isAdmin.value) {
-            _message.value = UiMessage("Admin login required to remove players", isError = true)
-            return
-        }
+        val player = repository.state.value.players.firstOrNull { it.id == playerId }
         repository.update { state ->
-            state.copy(players = state.players.filterNot { it.id == playerId })
+            val remaining = state.players.filterNot { it.id == playerId }
+            val teams = state.teams.mapNotNull { team ->
+                val roster = remaining.filter { it.teamId == team.id }
+                if (roster.isEmpty()) {
+                    null
+                } else {
+                    val captain = roster.firstOrNull { it.isCaptain } ?: roster.maxByOrNull { it.ratings.totalScore() }
+                    team.copy(captainId = captain?.id)
+                }
+            }
+            val withCaptains = remaining.map { p ->
+                p.copy(isCaptain = teams.any { it.captainId == p.id })
+            }
+            state.copy(
+                players = withCaptains,
+                teams = teams,
+                pendingSwitch = state.pendingSwitch?.takeIf { it.playerId != playerId }
+            )
         }
-        _message.value = UiMessage("Player removed")
+        _message.value = UiMessage("${player?.name ?: "Player"} removed")
     }
 
     fun createTeams(teamCount: Int, customNames: List<String> = emptyList()) {

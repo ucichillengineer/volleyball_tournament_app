@@ -16,14 +16,28 @@ expect fun createHttpClient(): HttpClient
  */
 object CloudConfig {
     const val SHARED_ROSTER_URL =
-        "https://jsonblob.com/api/jsonBlob/019fdfdf-413b-7c69-9c01-7edb3fab9a20"
+        "https://jsonblob.com/api/jsonBlob/019fe58b-6c60-7a87-99b0-a05dfe8465d0"
+
+    /** Durable read fallback (GitHub Gist). */
+    const val FALLBACK_ROSTER_URL =
+        "https://gist.githubusercontent.com/ucichillengineer/59c6f1256461293d9a7f0513a872dba2/raw/court-balance-data.json"
 }
 
 class CloudSync(
     private val client: HttpClient = createHttpClient()
 ) {
     suspend fun pull(): String =
-        client.get(CloudConfig.SHARED_ROSTER_URL).bodyAsText()
+        try {
+            client.get(CloudConfig.SHARED_ROSTER_URL).bodyAsText().also { body ->
+                if (body.contains("Blob not found", ignoreCase = true) ||
+                    body.contains("\"error\"")
+                ) {
+                    error("Primary cloud missing")
+                }
+            }
+        } catch (_: Exception) {
+            client.get(CloudConfig.FALLBACK_ROSTER_URL).bodyAsText()
+        }
 
     suspend fun push(jsonBody: String) {
         client.put(CloudConfig.SHARED_ROSTER_URL) {

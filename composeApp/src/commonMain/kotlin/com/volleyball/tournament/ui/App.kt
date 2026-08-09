@@ -355,10 +355,8 @@ private fun PlayersScreen(
                             allRounder = player.ratings.allRounder
                         }
                     }) { Text(if (editingId == player.id) "Close" else "Edit ratings", color = Sand) }
-                    if (isAdmin) {
-                        TextButton(onClick = { onRemove(player.id) }) {
-                            Text("Remove", color = Color(0xFFFF8A80))
-                        }
+                    TextButton(onClick = { onRemove(player.id) }) {
+                        Text("Remove", color = Color(0xFFFF8A80))
                     }
                 }
                 if (editingId == player.id) {
