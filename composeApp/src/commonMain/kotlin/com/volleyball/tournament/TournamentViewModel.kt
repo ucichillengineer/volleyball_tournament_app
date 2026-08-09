@@ -238,6 +238,25 @@ class TournamentViewModel(
         }
     }
 
+    fun restoreFromGitHubBackup() {
+        if (!_isAdmin.value) {
+            _message.value = UiMessage("Admin login required", isError = true)
+            return
+        }
+        scope.launch {
+            _busy.value = true
+            repository.restoreFromGitHubBackup().fold(
+                onSuccess = {
+                    _message.value = UiMessage("Restored roster from GitHub data/roster.json and published to live cloud")
+                },
+                onFailure = {
+                    _message.value = UiMessage(it.message ?: "GitHub restore failed", isError = true)
+                }
+            )
+            _busy.value = false
+        }
+    }
+
     fun exportSnapshot(): String = repository.exportJson()
 }
 

@@ -168,7 +168,8 @@ fun VolleyballApp(viewModel: TournamentViewModel = remember { TournamentViewMode
                             onLogin = viewModel::loginAdmin,
                             onLogout = viewModel::logoutAdmin,
                             onPassword = viewModel::updateAdminPassword,
-                            onRefresh = viewModel::refreshFromCloud
+                            onRefresh = viewModel::refreshFromCloud,
+                            onRestoreGitHub = viewModel::restoreFromGitHubBackup
                         )
                     }
                 }
@@ -537,7 +538,8 @@ private fun AdminScreen(
     onLogin: (String, String) -> Boolean,
     onLogout: () -> Unit,
     onPassword: (String) -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onRestoreGitHub: () -> Unit
 ) {
     var user by remember { mutableStateOf("admin") }
     var pass by remember { mutableStateOf("") }
@@ -553,13 +555,22 @@ private fun AdminScreen(
             Spacer(modifier = Modifier.height(12.dp))
             PrimaryAction("Unlock admin") { onLogin(user, pass) }
         } else {
-            Text("Admin unlocked. Roster syncs automatically to the shared cloud for everyone.", color = Sand)
+            Text(
+                "Admin unlocked. Live roster syncs to cloud. GitHub file data/roster.json is the editable backup.",
+                color = Sand
+            )
             Spacer(modifier = Modifier.height(12.dp))
             Button(
                 onClick = onRefresh,
                 colors = ButtonDefaults.buttonColors(containerColor = Spike),
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Refresh from cloud") }
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = onRestoreGitHub,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Sand)
+            ) { Text("Restore from GitHub backup") }
             Spacer(modifier = Modifier.height(16.dp))
             Field(newPass, { newPass = it }, "New admin password")
             Spacer(modifier = Modifier.height(8.dp))

@@ -1,0 +1,149 @@
+{
+  "players": [
+    {
+      "id": "player-vikas",
+      "name": "Vikas Yadlapalli",
+      "ratings": {
+        "setter": "ADVANCED",
+        "lifter": "ADVANCED",
+        "spiker": "ADVANCED",
+        "allRounder": "ADVANCED"
+      },
+      "teamId": "team-0",
+      "isCaptain": true
+    },
+    {
+      "id": "player-94c8175cadb8622e",
+      "name": "Babu  S",
+      "ratings": {
+        "setter": "MEDIUM",
+        "lifter": "MEDIUM",
+        "spiker": "MEDIUM",
+        "allRounder": "MEDIUM"
+      },
+      "teamId": "team-0",
+      "isCaptain": false
+    },
+    {
+      "id": "player-384047021112450",
+      "name": "ajay",
+      "ratings": {
+        "setter": "MEDIUM",
+        "lifter": "MEDIUM",
+        "spiker": "MEDIUM",
+        "allRounder": "MEDIUM"
+      },
+      "teamId": "team-0",
+      "isCaptain": false
+    },
+    {
+      "id": "player-9037fb3e8ea167dc",
+      "name": "Steve",
+      "ratings": {
+        "setter": "ADVANCED",
+        "lifter": "ADVANCED",
+        "spiker": "MEDIUM",
+        "allRounder": "ADVANCED"
+      },
+      "teamId": "team-1",
+      "isCaptain": true
+    },
+    {
+      "id": "player-9fba546fb3fd0dd2",
+      "name": "Prashanth",
+      "ratings": {
+        "setter": "MEDIUM",
+        "lifter": "MEDIUM",
+        "spiker": "MEDIUM",
+        "allRounder": "MEDIUM"
+      },
+      "teamId": "team-1",
+      "isCaptain": false
+    },
+    {
+      "id": "player-6f337b90396fb7e6",
+      "name": "Rama",
+      "ratings": {
+        "setter": "MEDIUM",
+        "lifter": "MEDIUM",
+        "spiker": "MEDIUM",
+        "allRounder": "MEDIUM"
+      },
+      "teamId": "team-1",
+      "isCaptain": false
+    },
+    {
+      "id": "player-e6aa2ed4adf6b2eb",
+      "name": "Prasad Tananki",
+      "ratings": {
+        "setter": "MEDIUM",
+        "lifter": "ADVANCED",
+        "spiker": "MEDIUM",
+        "allRounder": "ADVANCED"
+      },
+      "teamId": "team-2",
+      "isCaptain": true
+    },
+    {
+      "id": "player-6ce295de4a72040a",
+      "name": "Bro",
+      "ratings": {
+        "setter": "MEDIUM",
+        "lifter": "MEDIUM",
+        "spiker": "MEDIUM",
+        "allRounder": "MEDIUM"
+      },
+      "teamId": "team-2",
+      "isCaptain": false
+    },
+    {
+      "id": "player-praveen",
+      "name": "Praveen Sanigepalli",
+      "ratings": {
+        "setter": "MEDIUM",
+        "lifter": "BEGINNER",
+        "spiker": "MEDIUM",
+        "allRounder": "MEDIUM"
+      },
+      "teamId": "team-2",
+      "isCaptain": false
+    },
+    {
+      "id": "player-d472024c5b0d2c34",
+      "name": "Manjunath",
+      "ratings": {
+        "setter": "MEDIUM",
+        "lifter": "MEDIUM",
+        "spiker": "BEGINNER",
+        "allRounder": "MEDIUM"
+      },
+      "teamId": "team-2",
+      "isCaptain": false
+    }
+  ],
+  "teams": [
+    {
+      "id": "team-0",
+      "name": "Spike Squad",
+      "captainId": "player-vikas"
+    },
+    {
+      "id": "team-1",
+      "name": "Net Ninjas",
+      "captainId": "player-9037fb3e8ea167dc"
+    },
+    {
+      "id": "team-2",
+      "name": "Court Kings",
+      "captainId": "player-e6aa2ed4adf6b2eb"
+    }
+  ],
+  "admin": {
+    "username": "admin",
+    "password": "volleyball"
+  },
+  "pendingSwitch": null,
+  "driveFileId": "",
+  "driveSyncUrl": "",
+  "lastSyncedAt": 1786263068642
+}

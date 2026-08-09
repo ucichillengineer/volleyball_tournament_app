@@ -79,6 +79,19 @@ class AppRepository(
         Result.failure(e)
     }
 
+    /** Load the editable GitHub backup (`data/roster.json`) and publish it to live cloud. */
+    suspend fun restoreFromGitHubBackup(): Result<Unit> {
+        return try {
+            val backupJson = cloudSync.pullGitHubBackup()
+            val backup = json.decodeFromString<AppState>(backupJson)
+            replace(backup.copy(lastSyncedAt = currentTimeMillis()))
+            cloudSync.push(exportJson())
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     private fun mergePlayers(local: List<com.volleyball.tournament.domain.Player>, remote: List<com.volleyball.tournament.domain.Player>): List<com.volleyball.tournament.domain.Player> {
         val byKey = linkedMapOf<String, com.volleyball.tournament.domain.Player>()
         remote.forEach { byKey[it.name.trim().lowercase()] = it }

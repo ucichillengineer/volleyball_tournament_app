@@ -11,14 +11,20 @@ import io.ktor.http.contentType
 expect fun createHttpClient(): HttpClient
 
 /**
- * Shared cloud roster — no Google Drive setup required.
- * Hosted on jsonblob (CORS-friendly). Auto pull/push from the app.
+ * Shared cloud roster + GitHub file backup.
+ *
+ * - Live multi-device sync: jsonblob URL
+ * - Editable GitHub backup: data/roster.json (raw URL below)
  */
 object CloudConfig {
     const val SHARED_ROSTER_URL =
         "https://jsonblob.com/api/jsonBlob/019fe58b-6c60-7a87-99b0-a05dfe8465d0"
 
-    /** Durable read fallback (GitHub Gist). */
+    /** Manual-edit backup in the GitHub repo. */
+    const val GITHUB_ROSTER_URL =
+        "https://raw.githubusercontent.com/ucichillengineer/volleyball_tournament_app/main/data/roster.json"
+
+    /** Older gist fallback. */
     const val FALLBACK_ROSTER_URL =
         "https://gist.githubusercontent.com/ucichillengineer/59c6f1256461293d9a7f0513a872dba2/raw/court-balance-data.json"
 }
@@ -35,6 +41,13 @@ class CloudSync(
                     error("Primary cloud missing")
                 }
             }
+        } catch (_: Exception) {
+            pullGitHubBackup()
+        }
+
+    suspend fun pullGitHubBackup(): String =
+        try {
+            client.get(CloudConfig.GITHUB_ROSTER_URL).bodyAsText()
         } catch (_: Exception) {
             client.get(CloudConfig.FALLBACK_ROSTER_URL).bodyAsText()
         }

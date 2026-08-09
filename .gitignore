@@ -20,6 +20,6 @@ dist/*.apk
 
 # Local package outputs (Pages site is committed under docs/)
 dist/
-.github/workflows/
 
+# Requires `workflow` OAuth scope to push; kept locally until authorized
 .github/workflows/
