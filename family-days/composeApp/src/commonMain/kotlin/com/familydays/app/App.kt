@@ -1,0 +1,113 @@
+package com.familydays.app
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+
+private val importedRecords = """
+    Alex: Jan 15, 1990
+    Priya: April 8, 1988
+    Jordan: July 21, 2012
+    Morgan: October 3, 2016
+    Taylor: Dec 12, 1982
+""".trimIndent()
+
+@Composable
+fun FamilyDaysApp() {
+    val events = remember { mutableStateListOf<ImportantDay>().apply { addAll(LegacyCsvParser.parse(importedRecords)) } }
+    var screen by remember { mutableStateOf(Screen.UPCOMING) }
+
+    MaterialTheme {
+        Column(Modifier.fillMaxSize().padding(20.dp)) {
+            Text("Family Days", style = MaterialTheme.typography.headlineMedium)
+            Text("Birthdays & anniversaries", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { screen = Screen.UPCOMING }) { Text("Upcoming") }
+                Button(onClick = { screen = Screen.ALL }) { Text("All") }
+                Button(onClick = { screen = Screen.ADD }) { Text("Add") }
+            }
+            Spacer(Modifier.height(16.dp))
+            when (screen) {
+                Screen.UPCOMING -> EventList(events.sortedBy { it.daysUntil(todayMonth(), todayDay()) }, showCountdown = true)
+                Screen.ALL -> EventList(events.sortedWith(compareBy({ it.month }, { it.day }, { it.name })))
+                Screen.ADD -> AddEvent { events.add(it); screen = Screen.UPCOMING }
+            }
+        }
+    }
+}
+
+private enum class Screen { UPCOMING, ALL, ADD }
+
+@Composable
+private fun EventList(events: List<ImportantDay>, showCountdown: Boolean = false) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(events, key = { it.id }) { event ->
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp)) {
+                    Text(event.displayName, style = MaterialTheme.typography.titleMedium)
+                    Text("${event.type.label} · ${monthName(event.month)} ${event.day}${event.year?.let { ", $it" }.orEmpty()}")
+                    if (showCountdown) Text("In ${event.daysUntil(todayMonth(), todayDay())} days")
+                    if (event.needsReview) Text("Imported date needs confirmation", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddEvent(onAdd: (ImportantDay) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var initial by remember { mutableStateOf("") }
+    var month by remember { mutableStateOf("") }
+    var day by remember { mutableStateOf("") }
+    var isAnniversary by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Add an important day", style = MaterialTheme.typography.titleLarge)
+        Text("Use only a last-name initial to protect family privacy.")
+        OutlinedTextField(name, { name = it }, label = { Text("First name") }, singleLine = true)
+        OutlinedTextField(initial, { initial = it.take(1).uppercase() }, label = { Text("Last initial (optional)") }, singleLine = true)
+        OutlinedTextField(month, { month = it.filter(Char::isDigit).take(2) }, label = { Text("Month (1–12)") }, singleLine = true)
+        OutlinedTextField(day, { day = it.filter(Char::isDigit).take(2) }, label = { Text("Day (1–31)") }, singleLine = true)
+        Button(onClick = { isAnniversary = !isAnniversary }) {
+            Text(if (isAnniversary) "Type: Anniversary" else "Type: Birthday")
+        }
+        Button(onClick = {
+            val parsedMonth = month.toIntOrNull()
+            val parsedDay = day.toIntOrNull()
+            error = when {
+                name.isBlank() -> "First name is required."
+                parsedMonth !in 1..12 || parsedDay !in 1..31 -> "Enter a valid month and day."
+                else -> null
+            }
+            if (error == null) {
+                onAdd(ImportantDay("${name.lowercase()}-$parsedMonth-$parsedDay-${isAnniversary}", name.trim(), initial, parsedMonth!!, parsedDay!!, null, if (isAnniversary) EventType.ANNIVERSARY else EventType.BIRTHDAY))
+            }
+        }) { Text("Save event") }
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    }
+}
+
+private fun monthName(month: Int) = listOf("", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")[month]

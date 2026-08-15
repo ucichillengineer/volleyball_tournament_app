@@ -1,0 +1,11 @@
+.gradle/
+.kotlin/
+kotlin-js-store/
+build/
+**/build/
+.idea/
+local.properties
+
+# Private family information: retain locally only.
+importantdays.csv
+composeApp/src/commonMain/composeResources/files/importantdays.csv
