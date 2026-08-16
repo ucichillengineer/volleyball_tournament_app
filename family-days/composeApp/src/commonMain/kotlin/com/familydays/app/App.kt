@@ -1,6 +1,7 @@
 package com.familydays.app
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,8 +9,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -38,11 +42,14 @@ fun FamilyDaysApp() {
     var screen by remember { mutableStateOf(Screen.UPCOMING) }
 
     MaterialTheme {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
+        Column(Modifier.fillMaxSize().padding(20.dp)) {
             Text("Family Days", style = MaterialTheme.typography.headlineMedium)
             Text("Birthdays & anniversaries", style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Button(onClick = { screen = Screen.UPCOMING }) { Text("Upcoming") }
                 Button(onClick = { screen = Screen.ALL }) { Text("All") }
                 Button(onClick = { screen = Screen.HOLIDAYS }) { Text("Holidays") }
@@ -50,19 +57,23 @@ fun FamilyDaysApp() {
                 Button(onClick = { screen = Screen.IMPORT }) { Text("Import CSV") }
             }
             Spacer(Modifier.height(16.dp))
-            when (screen) {
-                Screen.UPCOMING -> {
-                    TodayGreetings(events)
-                    Spacer(Modifier.height(12.dp))
-                    EventList(events.sortedBy { it.daysUntil(todayMonth(), todayDay()) }, showCountdown = true)
-                }
-                Screen.ALL -> EventList(events.sortedWith(compareBy({ it.month }, { it.day }, { it.name })))
-                Screen.HOLIDAYS -> HolidayCalendar()
-                Screen.ADD -> AddEvent { events.add(it); screen = Screen.UPCOMING }
-                Screen.IMPORT -> ImportCsv { imported ->
-                    events.clear()
-                    events.addAll(imported)
-                    screen = Screen.UPCOMING
+            Box(Modifier.fillMaxSize()) {
+                when (screen) {
+                    Screen.UPCOMING -> {
+                        Column(Modifier.fillMaxSize()) {
+                            TodayGreetings(events)
+                            Spacer(Modifier.height(12.dp))
+                            EventList(events.sortedBy { it.daysUntil(todayMonth(), todayDay()) }, showCountdown = true)
+                        }
+                    }
+                    Screen.ALL -> EventList(events.sortedWith(compareBy({ it.month }, { it.day }, { it.name })))
+                    Screen.HOLIDAYS -> HolidayCalendar()
+                    Screen.ADD -> AddEvent { events.add(it); screen = Screen.UPCOMING }
+                    Screen.IMPORT -> ImportCsv { imported ->
+                        events.clear()
+                        events.addAll(imported)
+                        screen = Screen.UPCOMING
+                    }
                 }
             }
         }
@@ -73,8 +84,8 @@ private enum class Screen { UPCOMING, ALL, HOLIDAYS, ADD, IMPORT }
 
 @Composable
 private fun EventList(events: List<ImportantDay>, showCountdown: Boolean = false) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        events.forEach { event ->
+    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(events, key = { it.id }) { event ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp)) {
                     Text(event.displayName, style = MaterialTheme.typography.titleMedium)
@@ -112,10 +123,14 @@ private fun TodayGreetings(events: List<ImportantDay>) {
 @Composable
 private fun HolidayCalendar() {
     val holidays = observancesForYear(todayYear())
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("${todayYear()} holiday calendar", style = MaterialTheme.typography.titleLarge)
-        Text("U.S. federal observances and major Hindu holidays. Scroll to see the full calendar.")
-        holidays.forEach { holiday ->
+    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item {
+            Column {
+                Text("${todayYear()} holiday calendar", style = MaterialTheme.typography.titleLarge)
+                Text("U.S. federal observances and major Hindu holidays. Scroll to see the full calendar.")
+            }
+        }
+        items(holidays, key = { "${it.month}-${it.day}-${it.observance.title}" }) { holiday ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp)) {
                     Text("${monthName(holiday.month)} ${holiday.day} · ${holiday.observance.title}", style = MaterialTheme.typography.titleMedium)
