@@ -45,6 +45,7 @@ fun FamilyDaysApp() {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { screen = Screen.UPCOMING }) { Text("Upcoming") }
                 Button(onClick = { screen = Screen.ALL }) { Text("All") }
+                Button(onClick = { screen = Screen.HOLIDAYS }) { Text("Holidays") }
                 Button(onClick = { screen = Screen.ADD }) { Text("Add") }
                 Button(onClick = { screen = Screen.IMPORT }) { Text("Import CSV") }
             }
@@ -56,6 +57,7 @@ fun FamilyDaysApp() {
                     EventList(events.sortedBy { it.daysUntil(todayMonth(), todayDay()) }, showCountdown = true)
                 }
                 Screen.ALL -> EventList(events.sortedWith(compareBy({ it.month }, { it.day }, { it.name })))
+                Screen.HOLIDAYS -> HolidayCalendar()
                 Screen.ADD -> AddEvent { events.add(it); screen = Screen.UPCOMING }
                 Screen.IMPORT -> ImportCsv { imported ->
                     events.clear()
@@ -67,7 +69,7 @@ fun FamilyDaysApp() {
     }
 }
 
-private enum class Screen { UPCOMING, ALL, ADD, IMPORT }
+private enum class Screen { UPCOMING, ALL, HOLIDAYS, ADD, IMPORT }
 
 @Composable
 private fun EventList(events: List<ImportantDay>, showCountdown: Boolean = false) {
@@ -101,6 +103,24 @@ private fun TodayGreetings(events: List<ImportantDay>) {
                     Text(celebration.title, style = MaterialTheme.typography.titleMedium)
                     Text(celebration.greeting)
                     Button(onClick = { shareGreetingOnWhatsApp(celebration.greeting) }) { Text("Share on WhatsApp") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HolidayCalendar() {
+    val holidays = observancesForYear(todayYear())
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("${todayYear()} holiday calendar", style = MaterialTheme.typography.titleLarge)
+        Text("U.S. federal observances and major Hindu holidays. Scroll to see the full calendar.")
+        holidays.forEach { holiday ->
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp)) {
+                    Text("${monthName(holiday.month)} ${holiday.day} · ${holiday.observance.title}", style = MaterialTheme.typography.titleMedium)
+                    Text(holiday.observance.greeting)
+                    Button(onClick = { shareGreetingOnWhatsApp(holiday.observance.greeting) }) { Text("Share on WhatsApp") }
                 }
             }
         }

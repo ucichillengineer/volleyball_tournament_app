@@ -1,6 +1,7 @@
 package com.familydays.app
 
 data class Observance(val title: String, val greeting: String)
+data class DatedObservance(val month: Int, val day: Int, val observance: Observance)
 
 fun todayObservances(year: Int, month: Int, day: Int): List<Observance> {
     val observances = mutableListOf<Observance>()
@@ -43,6 +44,15 @@ fun todayObservances(year: Int, month: Int, day: Int): List<Observance> {
             .forEach { observances += Observance(it.name, it.greeting) }
     }
     return observances
+}
+
+fun observancesForYear(year: Int): List<DatedObservance> {
+    val daysInMonth = intArrayOf(31, if (isLeapYear(year)) 29 else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+    return daysInMonth.flatMapIndexed { index, days ->
+        (1..days).flatMap { day ->
+            todayObservances(year, index + 1, day).map { DatedObservance(index + 1, day, it) }
+        }
+    }
 }
 
 private const val SUNDAY = 0
