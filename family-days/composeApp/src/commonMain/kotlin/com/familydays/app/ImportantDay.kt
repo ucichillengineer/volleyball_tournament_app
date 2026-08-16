@@ -46,6 +46,14 @@ fun ImportantDay.greeting(currentYear: Int): String {
         ?: defaultGreeting
 }
 
+fun ImportantDay.teluguGreeting(currentYear: Int): String {
+    val years = year?.let { (currentYear - it).coerceAtLeast(0) }
+    return when (type) {
+        EventType.BIRTHDAY -> "🎂 జన్మదిన శుభాకాంక్షలు, $name!${years?.let { " ఈ $it${ordinalSuffix(it)} పుట్టినరోజు ఆనందంగా జరుపుకోండి!" }.orEmpty()}"
+        EventType.ANNIVERSARY -> "💐 వివాహ వార్షికోత్సవ శుభాకాంక్షలు, $name!${years?.let { " కలిసి $it సంవత్సరాల ప్రేమను జరుపుకోండి!" }.orEmpty()}"
+    }
+}
+
 private fun anniversaryGreeting(name: String, years: Int?): String {
     if (years == null) return "Happy Anniversary, $name!"
     val milestone = anniversaryMilestones[years]

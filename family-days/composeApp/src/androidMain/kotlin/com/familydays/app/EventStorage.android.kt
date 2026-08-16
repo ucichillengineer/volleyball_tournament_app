@@ -11,9 +11,15 @@ actual fun loadSavedEvents(onLoaded: (String?) -> Unit) {
 }
 
 actual fun saveEvents(csv: String) {
-    MainActivity.appContext
+    val context = MainActivity.appContext
+    context
         ?.getSharedPreferences(STORAGE_NAME, 0)
         ?.edit()
         ?.putString(EVENTS_KEY, csv)
         ?.apply()
+    if (context != null) ReminderScheduler.scheduleAll(context, csv)
+}
+
+actual fun exportEventsCsv(csv: String) {
+    MainActivity.currentActivity?.exportCsv(csv)
 }

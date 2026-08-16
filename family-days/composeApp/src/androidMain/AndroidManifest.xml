@@ -4,6 +4,9 @@
         android:allowBackup="true"
         android:label="Family Days"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <receiver
+            android:name=".ReminderReceiver"
+            android:exported="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true">

@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -64,6 +65,7 @@ fun FamilyDaysApp() {
                 Button(onClick = { screen = Screen.HOLIDAYS }) { Text("Holidays") }
                 Button(onClick = { screen = Screen.ADD }) { Text("Add") }
                 Button(onClick = { screen = Screen.IMPORT }) { Text("Import CSV") }
+                Button(onClick = { exportEventsCsv(events.toStructuredCsv()) }) { Text("Export CSV") }
             }
             Spacer(Modifier.height(16.dp))
             Box(Modifier.fillMaxSize()) {
@@ -105,12 +107,49 @@ private fun EventList(events: List<ImportantDay>, showCountdown: Boolean = false
                     Text(event.displayName, style = MaterialTheme.typography.titleMedium)
                     Text("${event.type.label} · ${monthName(event.month)} ${event.day}${event.year?.let { ", $it" }.orEmpty()}")
                     Text(event.greeting(todayYear()), style = MaterialTheme.typography.bodyMedium)
-                    Button(onClick = { shareGreetingOnWhatsApp(event.greeting(todayYear())) }) { Text("Share on WhatsApp") }
+                    Text(event.teluguGreeting(todayYear()), style = MaterialTheme.typography.bodyMedium)
+                    GreetingShareButton(event.greeting(todayYear()), event.teluguGreeting(todayYear()))
                     if (showCountdown) Text("In ${event.daysUntil(todayMonth(), todayDay())} days")
                     if (event.needsReview) Text("Imported date needs confirmation", color = MaterialTheme.colorScheme.error)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun GreetingShareButton(englishGreeting: String, teluguGreeting: String) {
+    var showComposer by remember { mutableStateOf(false) }
+    var note by remember { mutableStateOf("") }
+
+    Button(onClick = { showComposer = true }) { Text("✨ Personalize & share") }
+    if (showComposer) {
+        AlertDialog(
+            onDismissRequest = { showComposer = false },
+            title = { Text("Create your greeting 🎉") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("🎊 $englishGreeting")
+                    Text(teluguGreeting)
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = { note = it },
+                        label = { Text("Add a personal note") },
+                        placeholder = { Text("Wishing you love, laughter, and joy! 💐") }
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val message = listOf("🎉 $englishGreeting", teluguGreeting, note.trim())
+                        .filter { it.isNotBlank() }
+                        .joinToString("\n\n")
+                    shareGreetingOnWhatsApp(message)
+                    showComposer = false
+                }) { Text("Share on WhatsApp") }
+            },
+            dismissButton = { Button(onClick = { showComposer = false }) { Text("Cancel") } }
+        )
     }
 }
 
@@ -127,7 +166,7 @@ private fun TodayGreetings(events: List<ImportantDay>) {
                 Column(Modifier.padding(12.dp)) {
                     Text(celebration.title, style = MaterialTheme.typography.titleMedium)
                     Text(celebration.greeting)
-                    Button(onClick = { shareGreetingOnWhatsApp(celebration.greeting) }) { Text("Share on WhatsApp") }
+                    GreetingShareButton(celebration.greeting, "✨ శుభాకాంక్షలు! ఆనందంగా జరుపుకోండి.")
                 }
             }
         }
@@ -136,12 +175,14 @@ private fun TodayGreetings(events: List<ImportantDay>) {
 
 @Composable
 private fun HolidayCalendar() {
-    val holidays = observancesForYear(todayYear())
+    val holidays = observancesForYear(todayYear()).filter {
+        it.month > todayMonth() || (it.month == todayMonth() && it.day >= todayDay())
+    }
     LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             Column {
-                Text("${todayYear()} holiday calendar", style = MaterialTheme.typography.titleLarge)
-                Text("U.S. federal observances and major Hindu holidays. Scroll to see the full calendar.")
+                Text("Upcoming ${todayYear()} holidays", style = MaterialTheme.typography.titleLarge)
+                Text("Only current and future U.S. federal observances and major Hindu holidays are shown.")
             }
         }
         items(holidays, key = { "${it.month}-${it.day}-${it.observance.title}" }) { holiday ->
@@ -149,7 +190,7 @@ private fun HolidayCalendar() {
                 Column(Modifier.padding(12.dp)) {
                     Text("${monthName(holiday.month)} ${holiday.day} · ${holiday.observance.title}", style = MaterialTheme.typography.titleMedium)
                     Text(holiday.observance.greeting)
-                    Button(onClick = { shareGreetingOnWhatsApp(holiday.observance.greeting) }) { Text("Share on WhatsApp") }
+                    GreetingShareButton(holiday.observance.greeting, "✨ శుభాకాంక్షలు! ఆనందంగా జరుపుకోండి.")
                 }
             }
         }

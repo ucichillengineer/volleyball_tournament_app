@@ -2,6 +2,7 @@ package com.familydays.app
 
 expect fun loadSavedEvents(onLoaded: (String?) -> Unit)
 expect fun saveEvents(csv: String)
+expect fun exportEventsCsv(csv: String)
 
 fun List<ImportantDay>.toStructuredCsv(): String = buildString {
     appendLine("name,last_initial,event_type,month,day,year")
