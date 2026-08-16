@@ -27,8 +27,13 @@ if [[ -d "${WEB_OUT}" ]]; then
   cp -f composeApp/build/compose/skiko-runtime-processed-wasmjs/skiko.wasm dist/web/ 2>/dev/null || true
   echo "Web → dist/web/"
   # Keep GitHub Pages site in sync
-  rm -rf docs
   mkdir -p docs
+  # Family Days is a separate top-level project published at /family-days.
+  # Preserve it when replacing Court Balance's root Pages assets.
+  shopt -s dotglob nullglob
+  for path in docs/*; do
+    [[ "$(basename "$path")" == "family-days" ]] || rm -rf "$path"
+  done
   cp -R dist/web/* docs/
   touch docs/.nojekyll
   echo "Pages site → docs/"

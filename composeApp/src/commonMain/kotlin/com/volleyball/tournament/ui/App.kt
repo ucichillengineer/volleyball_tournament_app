@@ -268,8 +268,14 @@ private fun StatPill(text: String) {
 
 @Composable
 private fun PrimaryAction(label: String, onClick: () -> Unit) {
+    PrimaryAction(label = label, enabled = true, onClick = onClick)
+}
+
+@Composable
+private fun PrimaryAction(label: String, enabled: Boolean, onClick: () -> Unit) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier = Modifier.fillMaxWidth().height(54.dp),
         shape = RoundedCornerShape(14.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Spike, contentColor = Color.White)
@@ -571,6 +577,11 @@ private fun TournamentsScreen(
     var selectedIds by remember { mutableStateOf(players.map { it.id }.toSet()) }
     var assignments by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     val teamCount = teamCountText.toIntOrNull()?.coerceIn(2, 6) ?: 2
+    val manualTeamIds = (0 until teamCount).map { "manual-team-$it" }
+    val assignedPlayers = selectedIds.count { assignments[it] in manualTeamIds }
+    val manualTeamsReady = selectedIds.isNotEmpty() &&
+        assignedPlayers == selectedIds.size &&
+        manualTeamIds.all { teamId -> selectedIds.any { assignments[it] == teamId } }
     val active = tournaments.firstOrNull { it.id == activeTournamentId }
 
     ScreenScaffold(title = "Tournament", onBack = onBack) {
@@ -630,7 +641,17 @@ private fun TournamentsScreen(
 
         if (manualTeams) {
             Spacer(modifier = Modifier.height(10.dp))
-            Text("Assign every selected player", color = Foam.copy(alpha = 0.8f), fontSize = 13.sp)
+            Text(
+                "$assignedPlayers of ${selectedIds.size} Playing players assigned",
+                color = if (manualTeamsReady) Spike else Sand,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp
+            )
+            Text(
+                "Every Playing player must be assigned. Players marked Not playing are excluded.",
+                color = Foam.copy(alpha = 0.72f),
+                fontSize = 13.sp
+            )
             selectedIds.mapNotNull { id -> players.firstOrNull { it.id == id } }
                 .sortedBy { it.name }
                 .forEach { player ->
@@ -644,7 +665,8 @@ private fun TournamentsScreen(
         }
         Spacer(modifier = Modifier.height(12.dp))
         PrimaryAction(
-            if (manualTeams) "Create manual tournament" else "Create balanced tournament"
+            if (manualTeams) "Create manual tournament" else "Create balanced tournament",
+            enabled = !manualTeams || manualTeamsReady
         ) {
             onCreate(
                 name,
