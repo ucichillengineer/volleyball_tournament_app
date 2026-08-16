@@ -46,18 +46,24 @@ fun FamilyDaysApp() {
                 Button(onClick = { screen = Screen.UPCOMING }) { Text("Upcoming") }
                 Button(onClick = { screen = Screen.ALL }) { Text("All") }
                 Button(onClick = { screen = Screen.ADD }) { Text("Add") }
+                Button(onClick = { screen = Screen.IMPORT }) { Text("Import CSV") }
             }
             Spacer(Modifier.height(16.dp))
             when (screen) {
                 Screen.UPCOMING -> EventList(events.sortedBy { it.daysUntil(todayMonth(), todayDay()) }, showCountdown = true)
                 Screen.ALL -> EventList(events.sortedWith(compareBy({ it.month }, { it.day }, { it.name })))
                 Screen.ADD -> AddEvent { events.add(it); screen = Screen.UPCOMING }
+                Screen.IMPORT -> ImportCsv { imported ->
+                    events.clear()
+                    events.addAll(imported)
+                    screen = Screen.UPCOMING
+                }
             }
         }
     }
 }
 
-private enum class Screen { UPCOMING, ALL, ADD }
+private enum class Screen { UPCOMING, ALL, ADD, IMPORT }
 
 @Composable
 private fun EventList(events: List<ImportantDay>, showCountdown: Boolean = false) {
@@ -67,6 +73,7 @@ private fun EventList(events: List<ImportantDay>, showCountdown: Boolean = false
                 Column(Modifier.padding(14.dp)) {
                     Text(event.displayName, style = MaterialTheme.typography.titleMedium)
                     Text("${event.type.label} · ${monthName(event.month)} ${event.day}${event.year?.let { ", $it" }.orEmpty()}")
+                    Text(event.greeting(todayYear()), style = MaterialTheme.typography.bodyMedium)
                     if (showCountdown) Text("In ${event.daysUntil(todayMonth(), todayDay())} days")
                     if (event.needsReview) Text("Imported date needs confirmation", color = MaterialTheme.colorScheme.error)
                 }
@@ -76,12 +83,31 @@ private fun EventList(events: List<ImportantDay>, showCountdown: Boolean = false
 }
 
 @Composable
+private fun ImportCsv(onImported: (List<ImportantDay>) -> Unit) {
+    var message by remember { mutableStateOf("Choose a CSV from this device. It stays in this browser session.") }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Import important days", style = MaterialTheme.typography.titleLarge)
+        Text("Use sample-important-days.csv as the template: name, last_initial, event_type, month, day, year.")
+        Button(onClick = {
+            chooseCsvFile { csv ->
+                val imported = LegacyCsvParser.parse(csv)
+                message = if (imported.isEmpty()) "No valid events were found. Check the CSV columns and dates." else "Imported ${imported.size} event(s)."
+                if (imported.isNotEmpty()) onImported(imported)
+            }
+        }) { Text("Choose CSV file") }
+        Text(message)
+    }
+}
+
+@Composable
 private fun AddEvent(onAdd: (ImportantDay) -> Unit) {
     var name by remember { mutableStateOf("") }
     var initial by remember { mutableStateOf("") }
     var month by remember { mutableStateOf("") }
     var day by remember { mutableStateOf("") }
+    var year by remember { mutableStateOf("") }
     var isAnniversary by remember { mutableStateOf(false) }
+    var greetingTemplate by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -91,6 +117,13 @@ private fun AddEvent(onAdd: (ImportantDay) -> Unit) {
         OutlinedTextField(initial, { initial = it.take(1).uppercase() }, label = { Text("Last initial (optional)") }, singleLine = true)
         OutlinedTextField(month, { month = it.filter(Char::isDigit).take(2) }, label = { Text("Month (1–12)") }, singleLine = true)
         OutlinedTextField(day, { day = it.filter(Char::isDigit).take(2) }, label = { Text("Day (1–31)") }, singleLine = true)
+        OutlinedTextField(year, { year = it.filter(Char::isDigit).take(4) }, label = { Text("Year (enables age/anniversary years)") }, singleLine = true)
+        OutlinedTextField(
+            greetingTemplate,
+            { greetingTemplate = it },
+            label = { Text("Custom greeting (optional)") },
+            supportingText = { Text("Use {name}, {years}, and {event}.") }
+        )
         Button(onClick = { isAnniversary = !isAnniversary }) {
             Text(if (isAnniversary) "Type: Anniversary" else "Type: Birthday")
         }
@@ -103,7 +136,18 @@ private fun AddEvent(onAdd: (ImportantDay) -> Unit) {
                 else -> null
             }
             if (error == null) {
-                onAdd(ImportantDay("${name.lowercase()}-$parsedMonth-$parsedDay-${isAnniversary}", name.trim(), initial, parsedMonth!!, parsedDay!!, null, if (isAnniversary) EventType.ANNIVERSARY else EventType.BIRTHDAY))
+                onAdd(
+                    ImportantDay(
+                        id = "${name.lowercase()}-$parsedMonth-$parsedDay-${isAnniversary}",
+                        name = name.trim(),
+                        initial = initial,
+                        month = parsedMonth!!,
+                        day = parsedDay!!,
+                        year = year.toIntOrNull(),
+                        type = if (isAnniversary) EventType.ANNIVERSARY else EventType.BIRTHDAY,
+                        greetingTemplate = greetingTemplate.trim().takeIf { it.isNotBlank() }
+                    )
+                )
             }
         }) { Text("Save event") }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }

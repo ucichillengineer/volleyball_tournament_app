@@ -14,3 +14,4 @@ class MainActivity : ComponentActivity() {
 
 actual fun todayMonth(): Int = LocalDate.now().monthValue
 actual fun todayDay(): Int = LocalDate.now().dayOfMonth
+actual fun todayYear(): Int = LocalDate.now().year

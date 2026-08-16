@@ -13,12 +13,42 @@ object LegacyCsvParser {
      * intentionally omitted, so they cannot generate an accidental reminder.
      */
     fun parse(csv: String): List<ImportantDay> {
+        if (csv.lineSequence().firstOrNull()?.lowercase()?.contains("event_type") == true) {
+            return parseStructuredCsv(csv)
+        }
         return csv
             .replace("\"", "")
             .split('\n', '\r')
             .flatMap { line -> parseLine(line.trim()) }
             .distinctBy { "${it.name}-${it.month}-${it.day}-${it.type}" }
     }
+
+    private fun parseStructuredCsv(csv: String): List<ImportantDay> = csv
+        .lineSequence()
+        .drop(1)
+        .mapNotNull { row ->
+            val columns = row.split(',').map(String::trim)
+            if (columns.size < 6) return@mapNotNull null
+            val month = columns[3].toIntOrNull() ?: return@mapNotNull null
+            val day = columns[4].toIntOrNull() ?: return@mapNotNull null
+            val type = when (columns[2].lowercase()) {
+                "birthday" -> EventType.BIRTHDAY
+                "anniversary" -> EventType.ANNIVERSARY
+                else -> return@mapNotNull null
+            }
+            val name = columns[0].takeIf(String::isNotBlank) ?: return@mapNotNull null
+            ImportantDay(
+                id = "${name.lowercase()}-$month-$day-$type",
+                name = name,
+                initial = columns[1].take(1).uppercase(),
+                month = month,
+                day = day,
+                year = columns[5].toIntOrNull(),
+                type = type,
+                needsReview = columns[5].isBlank()
+            )
+        }
+        .toList()
 
     private fun parseLine(line: String): List<ImportantDay> {
         if (line.isBlank()) return emptyList()
