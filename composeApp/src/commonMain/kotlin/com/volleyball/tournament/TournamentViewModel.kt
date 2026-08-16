@@ -7,7 +7,12 @@ import com.volleyball.tournament.domain.SeedPlayers
 import com.volleyball.tournament.domain.SkillLevel
 import com.volleyball.tournament.domain.SkillRatings
 import com.volleyball.tournament.domain.TeamBalancer
+import com.volleyball.tournament.domain.Tournament
+import com.volleyball.tournament.domain.TournamentMatch
+import com.volleyball.tournament.domain.TournamentTeam
+import com.volleyball.tournament.domain.newMatchId
 import com.volleyball.tournament.domain.newPlayerId
+import com.volleyball.tournament.domain.newTournamentId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -41,6 +46,14 @@ class TournamentViewModel(
 
     val whatsAppText: StateFlow<String> = repository.state
         .map { TeamBalancer.formatWhatsAppMessage(it) }
+        .stateIn(scope, SharingStarted.Eagerly, "")
+
+    val tournamentWhatsAppText: StateFlow<String> = repository.state
+        .map { state ->
+            state.tournaments.firstOrNull { it.id == state.activeTournamentId }
+                ?.let { formatTournamentWhatsApp(it, state.players) }
+                ?: "No active tournament yet."
+        }
         .stateIn(scope, SharingStarted.Eagerly, "")
 
     private var pushJob: Job? = null
@@ -214,6 +227,120 @@ class TournamentViewModel(
         _message.value = UiMessage("Pending switch cancelled")
     }
 
+    fun createTournament(
+        name: String,
+        date: String,
+        participantIds: List<String>,
+        teamCount: Int,
+        manualAssignments: Map<String, String> = emptyMap()
+    ) {
+        val title = name.trim()
+        if (title.isEmpty() || date.trim().isEmpty()) {
+            _message.value = UiMessage("Tournament name and date are required", isError = true)
+            return
+        }
+        if (teamCount < 2 || participantIds.size < teamCount) {
+            _message.value = UiMessage("Select at least one player for each team", isError = true)
+            return
+        }
+        val roster = repository.state.value.players.filter { it.id in participantIds }
+        val teams = if (manualAssignments.isEmpty()) {
+            val (balancedTeams, assigned) = TeamBalancer.createBalancedTeams(roster, teamCount)
+            balancedTeams.map { team ->
+                val members = assigned.filter { it.teamId == team.id }
+                TournamentTeam(team.id, team.name, members.map { it.id }, team.captainId)
+            }
+        } else {
+            val ids = (0 until teamCount).map { "manual-team-$it" }
+            if (participantIds.any { manualAssignments[it] !in ids }) {
+                _message.value = UiMessage("Assign every selected player to a team", isError = true)
+                return
+            }
+            if (ids.any { teamId -> participantIds.none { manualAssignments[it] == teamId } }) {
+                _message.value = UiMessage("Add at least one player to every team", isError = true)
+                return
+            }
+            ids.mapIndexed { index, id ->
+                val members = participantIds.filter { manualAssignments[it] == id }
+                TournamentTeam(
+                    id = id,
+                    name = "Team ${index + 1}",
+                    playerIds = members,
+                    captainId = members.maxByOrNull { playerId ->
+                        roster.firstOrNull { it.id == playerId }?.ratings?.totalScore() ?: 0
+                    }
+                )
+            }
+        }
+        val tournament = Tournament(
+            id = newTournamentId(),
+            name = title,
+            date = date.trim(),
+            participantIds = participantIds,
+            teams = teams
+        )
+        repository.update { state ->
+            state.copy(
+                tournaments = state.tournaments + tournament,
+                activeTournamentId = tournament.id
+            )
+        }
+        _message.value = UiMessage("${tournament.name} created with ${teams.size} teams")
+    }
+
+    fun selectTournament(tournamentId: String) {
+        repository.update { it.copy(activeTournamentId = tournamentId) }
+    }
+
+    fun deleteTournament(tournamentId: String) {
+        repository.update { state ->
+            val remaining = state.tournaments.filterNot { it.id == tournamentId }
+            state.copy(
+                tournaments = remaining,
+                activeTournamentId = state.activeTournamentId
+                    ?.takeIf { it != tournamentId }
+                    ?: remaining.lastOrNull()?.id
+            )
+        }
+        _message.value = UiMessage("Tournament removed")
+    }
+
+    fun addMatch(teamOneId: String, teamTwoId: String, teamOneScore: String, teamTwoScore: String) {
+        val active = repository.state.value.tournaments
+            .firstOrNull { it.id == repository.state.value.activeTournamentId }
+            ?: run {
+                _message.value = UiMessage("Create or select a tournament first", isError = true)
+                return
+            }
+        if (teamOneId == teamTwoId) {
+            _message.value = UiMessage("Choose two different teams", isError = true)
+            return
+        }
+        val first = teamOneScore.toIntOrNull()
+        val second = teamTwoScore.toIntOrNull()
+        if (first == null || second == null || first < 0 || second < 0 || first == second) {
+            _message.value = UiMessage("Enter two different non-negative scores", isError = true)
+            return
+        }
+        val match = TournamentMatch(newMatchId(), teamOneId, teamTwoId, first, second)
+        repository.update { state ->
+            state.copy(tournaments = state.tournaments.map {
+                if (it.id == active.id) it.copy(matches = it.matches + match) else it
+            })
+        }
+        _message.value = UiMessage("Match score saved")
+    }
+
+    fun removeMatch(matchId: String) {
+        repository.update { state ->
+            state.copy(tournaments = state.tournaments.map { tournament ->
+                if (tournament.id == state.activeTournamentId) {
+                    tournament.copy(matches = tournament.matches.filterNot { it.id == matchId })
+                } else tournament
+            })
+        }
+    }
+
     fun updateAdminPassword(newPassword: String) {
         if (!_isAdmin.value) {
             _message.value = UiMessage("Admin login required", isError = true)
@@ -258,6 +385,35 @@ class TournamentViewModel(
     }
 
     fun exportSnapshot(): String = repository.exportJson()
+
+    private fun formatTournamentWhatsApp(tournament: Tournament, players: List<Player>): String = buildString {
+        appendLine("*${tournament.name}*")
+        appendLine("📅 ${tournament.date}")
+        appendLine()
+        appendLine("*Teams*")
+        tournament.teams.forEach { team ->
+            appendLine("*${team.name}*")
+            team.playerIds.forEach { playerId ->
+                val player = players.firstOrNull { it.id == playerId } ?: return@forEach
+                appendLine("• ${player.name}${if (player.id == team.captainId) " (C)" else ""}")
+            }
+            appendLine()
+        }
+        appendLine("*Match results*")
+        if (tournament.matches.isEmpty()) {
+            appendLine("No match scores recorded yet.")
+        } else {
+            tournament.matches.forEachIndexed { index, match ->
+                val first = tournament.teams.firstOrNull { it.id == match.teamOneId }?.name ?: "Team 1"
+                val second = tournament.teams.firstOrNull { it.id == match.teamTwoId }?.name ?: "Team 2"
+                val winner = tournament.teams.firstOrNull { it.id == match.winnerTeamId() }?.name
+                appendLine("${index + 1}. $first ${match.teamOneScore} – ${match.teamTwoScore} $second")
+                appendLine("   Winner: ${winner ?: "Not decided"} · Loser: ${
+                    if (winner == first) second else if (winner == second) first else "—"
+                }")
+            }
+        }
+    }.trim()
 }
 
 fun parseLevel(label: String): SkillLevel = SkillLevel.fromLabel(label)

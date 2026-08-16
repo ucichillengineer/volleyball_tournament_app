@@ -182,3 +182,9 @@ fun newPlayerId(): String =
 
 fun newTeamId(): String =
     "team-${kotlin.random.Random.nextLong().toULong().toString(16)}"
+
+fun newTournamentId(): String =
+    "tournament-${kotlin.random.Random.nextLong().toULong().toString(16)}"
+
+fun newMatchId(): String =
+    "match-${kotlin.random.Random.nextLong().toULong().toString(16)}"

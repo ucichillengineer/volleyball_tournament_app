@@ -2,6 +2,7 @@ package com.volleyball.tournament.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,6 +60,7 @@ import com.volleyball.tournament.TournamentViewModel
 import com.volleyball.tournament.domain.Player
 import com.volleyball.tournament.domain.SkillLevel
 import com.volleyball.tournament.domain.SkillRatings
+import com.volleyball.tournament.domain.Tournament
 import com.volleyball.tournament.openWhatsApp
 import com.volleyball.tournament.shareText
 
@@ -81,7 +83,7 @@ private val AppColors = darkColorScheme(
     outline = Sand.copy(alpha = 0.4f)
 )
 
-enum class AppTab { Home, Players, Teams, Admin }
+enum class AppTab { Home, Players, Teams, Tournaments, Admin }
 
 @Composable
 fun VolleyballApp(viewModel: TournamentViewModel = remember { TournamentViewModel() }) {
@@ -137,9 +139,11 @@ fun VolleyballApp(viewModel: TournamentViewModel = remember { TournamentViewMode
                         AppTab.Home -> HomeScreen(
                             playerCount = state.players.size,
                             teamCount = state.teams.size,
+                            tournamentCount = state.tournaments.size,
                             isAdmin = isAdmin,
                             onPlayers = { tab = AppTab.Players },
                             onTeams = { tab = AppTab.Teams },
+                            onTournaments = { tab = AppTab.Tournaments },
                             onAdmin = { tab = AppTab.Admin }
                         )
                         AppTab.Players -> PlayersScreen(
@@ -160,6 +164,18 @@ fun VolleyballApp(viewModel: TournamentViewModel = remember { TournamentViewMode
                             onRequestSwitch = viewModel::requestTeamSwitch,
                             onConfirm = viewModel::confirmSwitch,
                             onCancel = viewModel::cancelSwitch
+                        )
+                        AppTab.Tournaments -> TournamentsScreen(
+                            players = state.players,
+                            tournaments = state.tournaments,
+                            activeTournamentId = state.activeTournamentId,
+                            whatsAppText = viewModel.tournamentWhatsAppText.collectAsState().value,
+                            onBack = { tab = AppTab.Home },
+                            onCreate = viewModel::createTournament,
+                            onSelect = viewModel::selectTournament,
+                            onDelete = viewModel::deleteTournament,
+                            onAddMatch = viewModel::addMatch,
+                            onRemoveMatch = viewModel::removeMatch
                         )
                         AppTab.Admin -> AdminScreen(
                             isAdmin = isAdmin,
@@ -182,9 +198,11 @@ fun VolleyballApp(viewModel: TournamentViewModel = remember { TournamentViewMode
 private fun HomeScreen(
     playerCount: Int,
     teamCount: Int,
+    tournamentCount: Int,
     isAdmin: Boolean,
     onPlayers: () -> Unit,
     onTeams: () -> Unit,
+    onTournaments: () -> Unit,
     onAdmin: () -> Unit
 ) {
     Column(
@@ -214,12 +232,14 @@ private fun HomeScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 StatPill("$playerCount players")
                 StatPill("$teamCount teams")
+                StatPill("$tournamentCount tournaments")
                 if (isAdmin) StatPill("admin")
             }
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             PrimaryAction("Open roster", onPlayers)
+            PrimaryAction("Organize tournament", onTournaments)
             PrimaryAction("Balance teams", onTeams)
             OutlinedButton(
                 onClick = onAdmin,
@@ -528,6 +548,319 @@ private fun SwitchMenu(
             }
         }
     }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TournamentsScreen(
+    players: List<Player>,
+    tournaments: List<Tournament>,
+    activeTournamentId: String?,
+    whatsAppText: String,
+    onBack: () -> Unit,
+    onCreate: (String, String, List<String>, Int, Map<String, String>) -> Unit,
+    onSelect: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    onAddMatch: (String, String, String, String) -> Unit,
+    onRemoveMatch: (String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf("") }
+    var teamCountText by remember { mutableStateOf("2") }
+    var manualTeams by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf(players.map { it.id }.toSet()) }
+    var assignments by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    val teamCount = teamCountText.toIntOrNull()?.coerceIn(2, 6) ?: 2
+    val active = tournaments.firstOrNull { it.id == activeTournamentId }
+
+    ScreenScaffold(title = "Tournament", onBack = onBack) {
+        Text(
+            "Pick the players for one event, form teams, then record and share each match result.",
+            color = Foam.copy(alpha = 0.75f)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Field(name, { name = it }, "Tournament name")
+        Spacer(modifier = Modifier.height(8.dp))
+        Field(date, { date = it }, "Date (YYYY-MM-DD)")
+        Spacer(modifier = Modifier.height(8.dp))
+        Field(
+            teamCountText,
+            { teamCountText = it.filter(Char::isDigit).take(1) },
+            "Number of teams (2–6)"
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text("Players in this tournament", color = Sand, fontWeight = FontWeight.SemiBold)
+        Spacer(modifier = Modifier.height(6.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            players.forEach { player ->
+                FilterChip(
+                    selected = player.id in selectedIds,
+                    onClick = {
+                        selectedIds = if (player.id in selectedIds) selectedIds - player.id
+                        else selectedIds + player.id
+                    },
+                    label = { Text(player.name) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Spike,
+                        selectedLabelColor = Color.White,
+                        containerColor = Color(0xFF0F3F30),
+                        labelColor = Foam
+                    )
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        val playing = players.filter { it.id in selectedIds }
+        val notPlaying = players.filterNot { it.id in selectedIds }
+        AvailabilitySummary(
+            playing = playing,
+            notPlaying = notPlaying
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        FilterChip(
+            selected = manualTeams,
+            onClick = { manualTeams = !manualTeams },
+            label = { Text("Create teams manually") },
+            colors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = Spike,
+                selectedLabelColor = Color.White,
+                labelColor = Foam
+            )
+        )
+
+        if (manualTeams) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text("Assign every selected player", color = Foam.copy(alpha = 0.8f), fontSize = 13.sp)
+            selectedIds.mapNotNull { id -> players.firstOrNull { it.id == id } }
+                .sortedBy { it.name }
+                .forEach { player ->
+                    ManualAssignmentRow(
+                        player = player,
+                        teamCount = teamCount,
+                        selectedTeamId = assignments[player.id],
+                        onAssign = { teamId -> assignments = assignments + (player.id to teamId) }
+                    )
+                }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        PrimaryAction(
+            if (manualTeams) "Create manual tournament" else "Create balanced tournament"
+        ) {
+            onCreate(
+                name,
+                date,
+                selectedIds.toList(),
+                teamCount,
+                if (manualTeams) assignments else emptyMap()
+            )
+        }
+
+        if (tournaments.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(28.dp))
+            Text("Your tournaments", fontFamily = FontFamily.Serif, fontSize = 27.sp, color = Sand)
+            Spacer(modifier = Modifier.height(8.dp))
+            tournaments.reversed().forEach { tournament ->
+                val selected = tournament.id == activeTournamentId
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 5.dp)
+                        .border(
+                            if (selected) 2.dp else 1.dp,
+                            if (selected) Spike else Sand.copy(alpha = 0.3f),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .clickable { onSelect(tournament.id) }
+                        .padding(12.dp)
+                ) {
+                    Text(tournament.name, fontWeight = FontWeight.Bold, color = Foam)
+                    Text(
+                        "${tournament.date} · ${tournament.participantIds.size} players · ${tournament.teams.size} teams",
+                        color = Foam.copy(alpha = 0.65f),
+                        fontSize = 12.sp
+                    )
+                    if (selected) {
+                        Text("Active", color = Spike, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(onClick = { onDelete(tournament.id) }) {
+                        Text("Remove tournament", color = Color(0xFFFF8A80))
+                    }
+                }
+            }
+        }
+
+        active?.let { tournament ->
+            Spacer(modifier = Modifier.height(28.dp))
+            Text("Teams · ${tournament.name}", fontFamily = FontFamily.Serif, fontSize = 27.sp, color = Sand)
+            tournament.teams.forEach { team ->
+                val roster = team.playerIds.mapNotNull { id -> players.firstOrNull { it.id == id } }
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                        .border(1.dp, Sand.copy(alpha = 0.25f), RoundedCornerShape(12.dp)).padding(12.dp)
+                ) {
+                    Text(team.name, color = Foam, fontWeight = FontWeight.Bold)
+                    Text(
+                        roster.joinToString(" · ") { it.name + if (it.id == team.captainId) " (C)" else "" },
+                        color = Foam.copy(alpha = 0.72f),
+                        fontSize = 13.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            MatchScoreCard(tournament = tournament, onAddMatch = onAddMatch)
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Results", fontFamily = FontFamily.Serif, fontSize = 25.sp, color = Sand)
+            if (tournament.matches.isEmpty()) {
+                Text("No scores recorded yet.", color = Foam.copy(alpha = 0.7f))
+            }
+            tournament.matches.forEachIndexed { index, match ->
+                val first = tournament.teams.firstOrNull { it.id == match.teamOneId }?.name ?: "Team 1"
+                val second = tournament.teams.firstOrNull { it.id == match.teamTwoId }?.name ?: "Team 2"
+                val winner = tournament.teams.firstOrNull { it.id == match.winnerTeamId() }?.name
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                        .border(1.dp, Sand.copy(alpha = 0.25f), RoundedCornerShape(12.dp)).padding(12.dp)
+                ) {
+                    Text("Match ${index + 1} · $first ${match.teamOneScore} – ${match.teamTwoScore} $second", color = Foam)
+                    Text(
+                        "Winner: ${winner ?: "Not decided"} · Loser: ${
+                            if (winner == first) second else if (winner == second) first else "—"
+                        }",
+                        color = Sand,
+                        fontSize = 13.sp
+                    )
+                    TextButton(onClick = { onRemoveMatch(match.id) }) {
+                        Text("Remove score", color = Color(0xFFFF8A80))
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            PrimaryAction("Share tournament on WhatsApp") { openWhatsApp(whatsAppText) }
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { shareText(whatsAppText, "${tournament.name}-results.txt") },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Sand)
+            ) { Text("Share / copy tournament sheet") }
+        }
+    }
+}
+
+@Composable
+private fun AvailabilitySummary(
+    playing: List<Player>,
+    notPlaying: List<Player>
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF0F3F30), RoundedCornerShape(12.dp))
+            .border(1.dp, Sand.copy(alpha = 0.24f), RoundedCornerShape(12.dp))
+            .padding(12.dp)
+    ) {
+        Text("Playing (${playing.size})", color = Spike, fontWeight = FontWeight.Bold)
+        Text(
+            playing.joinToString { it.name }.ifEmpty { "No players selected" },
+            color = Foam,
+            fontSize = 13.sp
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("Not playing (${notPlaying.size})", color = Sand, fontWeight = FontWeight.Bold)
+        Text(
+            notPlaying.joinToString { it.name }.ifEmpty { "Everyone is playing" },
+            color = Foam.copy(alpha = 0.75f),
+            fontSize = 13.sp
+        )
+    }
+}
+
+@Composable
+private fun ManualAssignmentRow(
+    player: Player,
+    teamCount: Int,
+    selectedTeamId: String?,
+    onAssign: (String) -> Unit
+) {
+    var open by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(player.name, modifier = Modifier.weight(1f), color = Foam)
+        Box {
+            OutlinedButton(onClick = { open = true }, colors = ButtonDefaults.outlinedButtonColors(contentColor = Sand)) {
+                Text(selectedTeamId?.removePrefix("manual-team-")?.toIntOrNull()?.let { "Team ${it + 1}" } ?: "Assign")
+            }
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                (0 until teamCount).forEach { index ->
+                    DropdownMenuItem(
+                        text = { Text("Team ${index + 1}") },
+                        onClick = {
+                            open = false
+                            onAssign("manual-team-$index")
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MatchScoreCard(
+    tournament: Tournament,
+    onAddMatch: (String, String, String, String) -> Unit
+) {
+    var firstTeamId by remember(tournament.id) { mutableStateOf(tournament.teams.firstOrNull()?.id ?: "") }
+    var secondTeamId by remember(tournament.id) { mutableStateOf(tournament.teams.getOrNull(1)?.id ?: "") }
+    var firstScore by remember(tournament.id) { mutableStateOf("") }
+    var secondScore by remember(tournament.id) { mutableStateOf("") }
+    var firstOpen by remember { mutableStateOf(false) }
+    var secondOpen by remember { mutableStateOf(false) }
+    val firstName = tournament.teams.firstOrNull { it.id == firstTeamId }?.name ?: "Choose team"
+    val secondName = tournament.teams.firstOrNull { it.id == secondTeamId }?.name ?: "Choose team"
+
+    Text("Record a match", fontFamily = FontFamily.Serif, fontSize = 25.sp, color = Sand)
+    Spacer(modifier = Modifier.height(8.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.weight(1f)) {
+            OutlinedButton(onClick = { firstOpen = true }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(contentColor = Sand)) {
+                Text(firstName)
+            }
+            DropdownMenu(expanded = firstOpen, onDismissRequest = { firstOpen = false }) {
+                tournament.teams.forEach { team ->
+                    DropdownMenuItem(text = { Text(team.name) }, onClick = { firstTeamId = team.id; firstOpen = false })
+                }
+            }
+        }
+        Box(modifier = Modifier.weight(1f)) {
+            OutlinedButton(onClick = { secondOpen = true }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(contentColor = Sand)) {
+                Text(secondName)
+            }
+            DropdownMenu(expanded = secondOpen, onDismissRequest = { secondOpen = false }) {
+                tournament.teams.forEach { team ->
+                    DropdownMenuItem(text = { Text(team.name) }, onClick = { secondTeamId = team.id; secondOpen = false })
+                }
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(modifier = Modifier.weight(1f)) { Field(firstScore, { firstScore = it.filter(Char::isDigit) }, "$firstName score") }
+        Box(modifier = Modifier.weight(1f)) { Field(secondScore, { secondScore = it.filter(Char::isDigit) }, "$secondName score") }
+    }
+    Spacer(modifier = Modifier.height(10.dp))
+    Button(
+        onClick = {
+            onAddMatch(firstTeamId, secondTeamId, firstScore, secondScore)
+            firstScore = ""
+            secondScore = ""
+        },
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(containerColor = Spike)
+    ) { Text("Save result and choose winner") }
 }
 
 @Composable

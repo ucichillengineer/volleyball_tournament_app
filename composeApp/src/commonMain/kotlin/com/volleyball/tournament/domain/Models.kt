@@ -55,9 +55,45 @@ data class PendingSwitch(
 )
 
 @Serializable
+data class TournamentTeam(
+    val id: String,
+    val name: String,
+    val playerIds: List<String> = emptyList(),
+    val captainId: String? = null
+)
+
+@Serializable
+data class TournamentMatch(
+    val id: String,
+    val teamOneId: String,
+    val teamTwoId: String,
+    val teamOneScore: Int? = null,
+    val teamTwoScore: Int? = null
+) {
+    fun winnerTeamId(): String? = when {
+        teamOneScore == null || teamTwoScore == null || teamOneScore == teamTwoScore -> null
+        teamOneScore > teamTwoScore -> teamOneId
+        else -> teamTwoId
+    }
+}
+
+@Serializable
+data class Tournament(
+    val id: String,
+    val name: String,
+    /** ISO-style user-entered date, e.g. 2026-08-16. */
+    val date: String,
+    val participantIds: List<String>,
+    val teams: List<TournamentTeam>,
+    val matches: List<TournamentMatch> = emptyList()
+)
+
+@Serializable
 data class AppState(
     val players: List<Player> = emptyList(),
     val teams: List<Team> = emptyList(),
+    val tournaments: List<Tournament> = emptyList(),
+    val activeTournamentId: String? = null,
     val admin: AdminCredentials = AdminCredentials(),
     val pendingSwitch: PendingSwitch? = null,
     val driveFileId: String = "",
