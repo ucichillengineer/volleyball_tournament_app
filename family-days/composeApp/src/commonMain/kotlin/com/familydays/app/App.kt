@@ -8,8 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -38,7 +38,7 @@ fun FamilyDaysApp() {
     var screen by remember { mutableStateOf(Screen.UPCOMING) }
 
     MaterialTheme {
-        Column(Modifier.fillMaxSize().padding(20.dp)) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
             Text("Family Days", style = MaterialTheme.typography.headlineMedium)
             Text("Birthdays & anniversaries", style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(16.dp))
@@ -71,8 +71,8 @@ private enum class Screen { UPCOMING, ALL, ADD, IMPORT }
 
 @Composable
 private fun EventList(events: List<ImportantDay>, showCountdown: Boolean = false) {
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(events, key = { it.id }) { event ->
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        events.forEach { event ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp)) {
                     Text(event.displayName, style = MaterialTheme.typography.titleMedium)
