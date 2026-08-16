@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -40,6 +41,14 @@ private val importedRecords = """
 fun FamilyDaysApp() {
     val events = remember { mutableStateListOf<ImportantDay>().apply { addAll(LegacyCsvParser.parse(importedRecords)) } }
     var screen by remember { mutableStateOf(Screen.UPCOMING) }
+    LaunchedEffect(Unit) {
+        loadSavedEvents { savedCsv ->
+            if (!savedCsv.isNullOrBlank()) {
+                events.clear()
+                events.addAll(LegacyCsvParser.parse(savedCsv))
+            }
+        }
+    }
 
     MaterialTheme {
         Column(Modifier.fillMaxSize().padding(20.dp)) {
@@ -68,10 +77,15 @@ fun FamilyDaysApp() {
                     }
                     Screen.ALL -> EventList(events.sortedWith(compareBy({ it.month }, { it.day }, { it.name })))
                     Screen.HOLIDAYS -> HolidayCalendar()
-                    Screen.ADD -> AddEvent { events.add(it); screen = Screen.UPCOMING }
+                    Screen.ADD -> AddEvent {
+                        events.add(it)
+                        saveEvents(events.toStructuredCsv())
+                        screen = Screen.UPCOMING
+                    }
                     Screen.IMPORT -> ImportCsv { imported ->
                         events.clear()
                         events.addAll(imported)
+                    saveEvents(events.toStructuredCsv())
                         screen = Screen.UPCOMING
                     }
                 }
