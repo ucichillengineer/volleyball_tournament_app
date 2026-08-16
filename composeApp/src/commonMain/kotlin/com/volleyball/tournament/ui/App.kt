@@ -591,22 +591,21 @@ private fun TournamentsScreen(
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text("Players in this tournament", color = Sand, fontWeight = FontWeight.SemiBold)
+        Text(
+            "Tap a player to switch between Playing and Not playing.",
+            color = Foam.copy(alpha = 0.65f),
+            fontSize = 13.sp
+        )
         Spacer(modifier = Modifier.height(6.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            players.forEach { player ->
-                FilterChip(
-                    selected = player.id in selectedIds,
-                    onClick = {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            players.sortedBy { it.name }.forEach { player ->
+                PlayerAttendanceRow(
+                    player = player,
+                    isPlaying = player.id in selectedIds,
+                    onToggle = {
                         selectedIds = if (player.id in selectedIds) selectedIds - player.id
                         else selectedIds + player.id
-                    },
-                    label = { Text(player.name) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = Spike,
-                        selectedLabelColor = Color.White,
-                        containerColor = Color(0xFF0F3F30),
-                        labelColor = Foam
-                    )
+                    }
                 )
             }
         }
@@ -745,6 +744,36 @@ private fun TournamentsScreen(
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Sand)
             ) { Text("Share / copy tournament sheet") }
         }
+    }
+}
+
+@Composable
+private fun PlayerAttendanceRow(
+    player: Player,
+    isPlaying: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (isPlaying) Spike.copy(alpha = 0.22f) else Color(0xFF0F3F30))
+            .border(
+                1.dp,
+                if (isPlaying) Spike.copy(alpha = 0.8f) else Sand.copy(alpha = 0.2f),
+                RoundedCornerShape(10.dp)
+            )
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(player.name, modifier = Modifier.weight(1f), color = Foam, fontWeight = FontWeight.SemiBold)
+        Text(
+            if (isPlaying) "Playing" else "Not playing",
+            color = if (isPlaying) Spike else Foam.copy(alpha = 0.65f),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
