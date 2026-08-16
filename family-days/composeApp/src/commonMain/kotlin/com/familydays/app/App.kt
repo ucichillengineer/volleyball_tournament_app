@@ -50,7 +50,11 @@ fun FamilyDaysApp() {
             }
             Spacer(Modifier.height(16.dp))
             when (screen) {
-                Screen.UPCOMING -> EventList(events.sortedBy { it.daysUntil(todayMonth(), todayDay()) }, showCountdown = true)
+                Screen.UPCOMING -> {
+                    TodayGreetings(events)
+                    Spacer(Modifier.height(12.dp))
+                    EventList(events.sortedBy { it.daysUntil(todayMonth(), todayDay()) }, showCountdown = true)
+                }
                 Screen.ALL -> EventList(events.sortedWith(compareBy({ it.month }, { it.day }, { it.name })))
                 Screen.ADD -> AddEvent { events.add(it); screen = Screen.UPCOMING }
                 Screen.IMPORT -> ImportCsv { imported ->
@@ -74,8 +78,29 @@ private fun EventList(events: List<ImportantDay>, showCountdown: Boolean = false
                     Text(event.displayName, style = MaterialTheme.typography.titleMedium)
                     Text("${event.type.label} · ${monthName(event.month)} ${event.day}${event.year?.let { ", $it" }.orEmpty()}")
                     Text(event.greeting(todayYear()), style = MaterialTheme.typography.bodyMedium)
+                    Button(onClick = { shareGreetingOnWhatsApp(event.greeting(todayYear())) }) { Text("Share on WhatsApp") }
                     if (showCountdown) Text("In ${event.daysUntil(todayMonth(), todayDay())} days")
                     if (event.needsReview) Text("Imported date needs confirmation", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TodayGreetings(events: List<ImportantDay>) {
+    val todayEvents = events.filter { it.month == todayMonth() && it.day == todayDay() }
+    val observances = todayObservances(todayYear(), todayMonth(), todayDay())
+    if (todayEvents.isEmpty() && observances.isEmpty()) return
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Today’s celebrations", style = MaterialTheme.typography.titleLarge)
+        (todayEvents.map { Observance(it.displayName, it.greeting(todayYear())) } + observances).forEach { celebration ->
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp)) {
+                    Text(celebration.title, style = MaterialTheme.typography.titleMedium)
+                    Text(celebration.greeting)
+                    Button(onClick = { shareGreetingOnWhatsApp(celebration.greeting) }) { Text("Share on WhatsApp") }
                 }
             }
         }

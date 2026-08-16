@@ -11,3 +11,7 @@ window.chooseFamilyDaysCsv = (onSelected) => {
   });
   input.click();
 };
+
+window.shareFamilyDaysGreeting = (greeting) => {
+  window.open(`https://wa.me/?text=${encodeURIComponent(greeting)}`, "_blank", "noopener,noreferrer");
+};

@@ -36,7 +36,7 @@ fun ImportantDay.greeting(currentYear: Int): String {
     val years = year?.let { (currentYear - it).coerceAtLeast(0) }
     val defaultGreeting = when (type) {
         EventType.BIRTHDAY -> if (years == null) "Happy Birthday, $name!" else "Happy $years${ordinalSuffix(years)} Birthday, $name!"
-        EventType.ANNIVERSARY -> if (years == null) "Happy Anniversary, $name!" else "Happy $years${ordinalSuffix(years)} Anniversary, $name!"
+        EventType.ANNIVERSARY -> anniversaryGreeting(name, years)
     }
     return greetingTemplate
         ?.replace("{name}", name)
@@ -45,6 +45,25 @@ fun ImportantDay.greeting(currentYear: Int): String {
         ?.takeIf { it.isNotBlank() }
         ?: defaultGreeting
 }
+
+private fun anniversaryGreeting(name: String, years: Int?): String {
+    if (years == null) return "Happy Anniversary, $name!"
+    val milestone = anniversaryMilestones[years]
+    val celebration = when (years) {
+        50 -> "Golden Jubilee"
+        60 -> "Diamond Jubilee"
+        else -> milestone?.let { "$it Anniversary" } ?: "${years}${ordinalSuffix(years)} Anniversary"
+    }
+    return "Happy $celebration, $name! Celebrating $years wonderful years together."
+}
+
+private val anniversaryMilestones = mapOf(
+    1 to "Paper", 2 to "Cotton", 3 to "Leather", 4 to "Fruit and Flowers",
+    5 to "Wood", 6 to "Iron", 7 to "Wool", 8 to "Bronze", 9 to "Pottery",
+    10 to "Tin", 11 to "Steel", 12 to "Silk", 13 to "Lace", 14 to "Ivory",
+    15 to "Crystal", 20 to "China", 25 to "Silver", 30 to "Pearl",
+    35 to "Coral", 40 to "Ruby", 45 to "Sapphire", 55 to "Emerald"
+)
 
 private fun ordinalSuffix(number: Int): String = when (number % 100) {
     11, 12, 13 -> "th"
