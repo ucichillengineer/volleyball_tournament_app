@@ -374,7 +374,7 @@ class TournamentViewModel(
             _busy.value = true
             repository.restoreFromGitHubBackup().fold(
                 onSuccess = {
-                    _message.value = UiMessage("Restored roster from GitHub data/roster.json and published to live cloud")
+                    _message.value = UiMessage("Restored roster from GitHub backup")
                 },
                 onFailure = {
                     _message.value = UiMessage(it.message ?: "GitHub restore failed", isError = true)
@@ -397,6 +397,10 @@ class TournamentViewModel(
                 val player = players.firstOrNull { it.id == playerId } ?: return@forEach
                 appendLine("• ${player.name}${if (player.id == team.captainId) " (C)" else ""}")
             }
+            val strength = team.playerIds.sumOf { playerId ->
+                players.firstOrNull { it.id == playerId }?.ratings?.totalScore() ?: 0
+            }
+            appendLine("_Team score: ${strength}_")
             appendLine()
         }
         appendLine("*Match results*")

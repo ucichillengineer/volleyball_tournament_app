@@ -79,13 +79,13 @@ class AppRepository(
         Result.failure(e)
     }
 
-    /** Load the editable GitHub backup (`data/roster.json`) and publish it to live cloud. */
+    /** Load the editable GitHub backup (`data/roster.json`) immediately.
+     * Do not upload here: the legacy live-cloud endpoint may be unavailable. */
     suspend fun restoreFromGitHubBackup(): Result<Unit> {
         return try {
             val backupJson = cloudSync.pullGitHubBackup()
             val backup = json.decodeFromString<AppState>(backupJson)
             replace(backup.copy(lastSyncedAt = currentTimeMillis()))
-            cloudSync.push(exportJson())
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

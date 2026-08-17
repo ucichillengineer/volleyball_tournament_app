@@ -716,11 +716,18 @@ private fun TournamentsScreen(
             Text("Teams · ${tournament.name}", fontFamily = FontFamily.Serif, fontSize = 27.sp, color = Sand)
             tournament.teams.forEach { team ->
                 val roster = team.playerIds.mapNotNull { id -> players.firstOrNull { it.id == id } }
+                val teamScore = roster.sumOf { it.ratings.totalScore() }
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                         .border(1.dp, Sand.copy(alpha = 0.25f), RoundedCornerShape(12.dp)).padding(12.dp)
                 ) {
                     Text(team.name, color = Foam, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Team score $teamScore",
+                        color = Spike,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
+                    )
                     Text(
                         roster.joinToString(" · ") { it.name + if (it.id == team.captainId) " (C)" else "" },
                         color = Foam.copy(alpha = 0.72f),
