@@ -225,9 +225,11 @@ private fun AddEvent(onAdd: (ImportantDay) -> Unit) {
     var greetingTemplate by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyColumn(Modifier.fillMaxSize()) {
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Add an important day", style = MaterialTheme.typography.titleLarge)
-        Text("Use only a last-name initial to protect family privacy.")
+        Text("Use only a last-name initial to protect family privacy. Scroll down to save.")
         OutlinedTextField(name, { name = it }, label = { Text("First name") }, singleLine = true)
         OutlinedTextField(initial, { initial = it.take(1).uppercase() }, label = { Text("Last initial (optional)") }, singleLine = true)
         OutlinedTextField(month, { month = it.filter(Char::isDigit).take(2) }, label = { Text("Month (1–12)") }, singleLine = true)
@@ -266,6 +268,8 @@ private fun AddEvent(onAdd: (ImportantDay) -> Unit) {
             }
         }) { Text("Save event") }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        }
     }
 }
 
